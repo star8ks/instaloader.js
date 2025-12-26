@@ -57,6 +57,16 @@ export type {
   FrozenIteratorState,
 } from './types';
 
+// InstaloaderContext
+export {
+  InstaloaderContext,
+  RateController,
+  defaultUserAgent,
+  defaultIphoneHeaders,
+} from './instaloadercontext';
+
+export type { InstaloaderContextOptions } from './instaloadercontext';
+
 // Structures
 export {
   // Helper functions
@@ -79,7 +89,6 @@ export {
 } from './structures';
 
 export type {
-  InstaloaderContext,
   NodeIterator,
   PostSidecarNode,
   PostCommentAnswer,

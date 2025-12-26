@@ -14,7 +14,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Types | N/A | `types.ts` | Done |
 | Structures | `structures.py` | `structures.ts` | Done |
 | Node Iterator | `nodeiterator.py` | `nodeiterator.ts` | Not Started |
-| Context | `instaloadercontext.py` | `instaloadercontext.ts` | Not Started |
+| Context | `instaloadercontext.py` | `instaloadercontext.ts` | Done |
 | Main Class | `instaloader.py` | `instaloader.ts` | Not Started |
 | CLI | `__main__.py` | `cli.ts` | Not Started |
 
@@ -74,20 +74,22 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
    - `story.test.ts` - StoryItem, Story, Highlight classes
    - `hashtag.test.ts` - Hashtag, TopSearchResults classes
 
+7. **instaloadercontext.ts** (~1,100 lines)
+   - InstaloaderContext class for HTTP client and session management
+   - RateController class for rate limiting
+   - Cookie management with tough-cookie
+   - GraphQL query support (graphql_query, doc_id_graphql_query)
+   - iPhone API support (get_iphone_json)
+   - Login with 2FA support
+   - Session save/load
+
 ## Next Steps
 
-1. **Port InstaloaderContext** (Priority: High)
-   - HTTP client with fetch API
-   - Cookie management with tough-cookie
-   - GraphQL query handling
-   - Rate limiting
-   - Login/session management
-
-2. **Port NodeIterator** (Priority: Medium)
+1. **Port NodeIterator** (Priority: High)
    - Async iterator for paginated results
    - Freeze/thaw for resumable downloads
 
-3. **Port main Instaloader class** (Priority: Medium)
+2. **Port main Instaloader class** (Priority: Medium)
    - Download orchestration
    - File saving utilities
 
@@ -97,11 +99,9 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 
 1. **Async/Await Pattern**: Python's synchronous methods become async in TypeScript. Some properties that lazily fetch data in Python become async methods in TypeScript.
 
-2. **Placeholder Interfaces**: `InstaloaderContext` and `NodeIterator` are defined as interfaces in structures.ts until they are fully implemented.
+2. **Type Safety**: Strict TypeScript with no `any` types. Using `JsonObject` and `JsonValue` for dynamic Instagram API responses.
 
-3. **Type Safety**: Strict TypeScript with no `any` types. Using `JsonObject` and `JsonValue` for dynamic Instagram API responses.
-
-4. **Node.js 18+**: Using native fetch API instead of external HTTP libraries.
+3. **Node.js 18+**: Using native fetch API instead of external HTTP libraries.
 
 ### File Size Comparison
 

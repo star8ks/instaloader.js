@@ -1,5 +1,49 @@
 # Change Log
 
+## 2024-12-27: Port InstaloaderContext
+
+### Summary
+Ported InstaloaderContext and RateController classes from Python instaloadercontext.py.
+
+### New Files
+- `src/instaloadercontext.ts` (~1,100 lines) - HTTP client and Instagram communication
+
+### Classes Ported
+
+| Class | Description |
+|-------|-------------|
+| `InstaloaderContext` | HTTP client, session management, GraphQL queries, login |
+| `RateController` | Request tracking and rate limiting |
+
+### Key Features
+- Cookie management using `tough-cookie`
+- Native `fetch` API for HTTP requests
+- GraphQL query support (`graphql_query`, `doc_id_graphql_query`)
+- iPhone API support (`get_iphone_json`)
+- Rate limiting with sliding window algorithm
+- Login with 2FA support
+- Session save/load for persistent login
+
+### Helper Functions
+- `defaultUserAgent()` - Returns default browser user agent
+- `defaultIphoneHeaders()` - Returns iPhone API headers
+
+### Dependencies Added
+- `uuid` - For generating session IDs
+
+### Design Decisions
+1. **Cookie Management**: Using `tough-cookie` instead of browser cookies for Node.js compatibility
+2. **Rate Limiting**: Ported the sliding window algorithm from Python
+3. **2FA Flow**: Stores pending 2FA state for multi-step authentication
+4. **Error Handling**: Proper exception hierarchy for different HTTP error codes
+
+### Verification
+- `npm run typecheck` - Passes
+- `npm run test` - 139 tests pass
+- `npm run build` - Builds successfully
+
+---
+
 ## 2024-12-27: Add Unit Tests for Data Models
 
 ### Summary
