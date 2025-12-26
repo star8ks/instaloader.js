@@ -67,6 +67,19 @@ export {
 
 export type { InstaloaderContextOptions } from './instaloadercontext';
 
+// NodeIterator
+export {
+  NodeIterator,
+  FrozenNodeIterator,
+  resumableIteration,
+} from './nodeiterator';
+
+export type {
+  NodeIteratorOptions,
+  ResumableIterationOptions,
+  ResumableIterationResult,
+} from './nodeiterator';
+
 // Structures
 export {
   // Helper functions
@@ -89,9 +102,22 @@ export {
 } from './structures';
 
 export type {
-  NodeIterator,
+  NodeIterator as StructureNodeIterator, // Re-export with different name to avoid conflict
   PostSidecarNode,
   PostCommentAnswer,
   PostLocation,
   JsonExportable,
 } from './structures';
+
+// Instaloader main class
+export {
+  Instaloader,
+  getConfigDir,
+  getDefaultSessionFilename,
+  getDefaultStampsFilename,
+  formatStringContainsKey,
+  sanitizePath,
+  formatFilename,
+} from './instaloader';
+
+export type { InstaloaderOptions } from './instaloader';

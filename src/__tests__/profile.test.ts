@@ -4,25 +4,25 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Profile } from '../structures';
-import type { InstaloaderContext } from '../structures';
+import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
 
-// Mock InstaloaderContext
-function createMockContext(overrides: Partial<InstaloaderContext> = {}): InstaloaderContext {
+// Mock InstaloaderContext - use unknown cast for partial mock
+function createMockContext(overrides: Record<string, unknown> = {}): InstaloaderContext {
   return {
-    iphone_support: false,
+    iphoneSupport: false,
     is_logged_in: false,
     username: null,
     profile_id_cache: new Map(),
     graphql_query: vi.fn(),
     doc_id_graphql_query: vi.fn(),
-    get_json: vi.fn(),
+    getJson: vi.fn(),
     get_iphone_json: vi.fn(),
     head: vi.fn(),
     error: vi.fn(),
     log: vi.fn(),
     ...overrides,
-  };
+  } as unknown as InstaloaderContext;
 }
 
 // Sample profile node data

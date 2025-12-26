@@ -12,47 +12,11 @@ import {
   ProfileNotExistsException,
   QueryReturnedNotFoundException,
 } from './exceptions';
+import type { InstaloaderContext } from './instaloadercontext';
 import type { JsonObject, JsonValue, FrozenIteratorState } from './types';
 
-// =============================================================================
-// Forward declarations / Placeholder interfaces
-// These will be replaced when InstaloaderContext and NodeIterator are ported
-// =============================================================================
-
-/**
- * Placeholder interface for InstaloaderContext.
- * Will be replaced with actual implementation when instaloadercontext.ts is ported.
- */
-export interface InstaloaderContext {
-  readonly iphone_support: boolean;
-  readonly is_logged_in: boolean;
-  readonly username: string | null;
-  readonly profile_id_cache: Map<number, Profile>;
-
-  graphql_query(
-    queryHash: string,
-    variables: JsonObject,
-    referer?: string
-  ): Promise<JsonObject>;
-
-  doc_id_graphql_query(
-    docId: string,
-    variables: JsonObject,
-    referer?: string
-  ): Promise<JsonObject>;
-
-  get_json(path: string, params: JsonObject): Promise<JsonObject>;
-
-  get_iphone_json(path: string, params: JsonObject): Promise<JsonObject>;
-
-  head(
-    url: string,
-    options?: { allow_redirects?: boolean }
-  ): Promise<{ headers: Map<string, string> }>;
-
-  error(message: string): void;
-  log(message: string): void;
-}
+// Re-export InstaloaderContext type for use by consumers who import from structures
+export type { InstaloaderContext } from './instaloadercontext';
 
 /**
  * Placeholder for NodeIterator.
@@ -557,7 +521,7 @@ export class Post {
    */
   // @ts-expect-error Reserved for future HQ image fetching
   private async _getIphoneStruct(): Promise<JsonObject> {
-    if (!this._context.iphone_support) {
+    if (!this._context.iphoneSupport) {
       throw new IPhoneSupportDisabledException('iPhone support is disabled.');
     }
     if (!this._context.is_logged_in) {
@@ -1260,7 +1224,7 @@ export class Profile {
 
   /** Profile picture URL */
   async getProfilePicUrl(): Promise<string> {
-    if (this._context.iphone_support && this._context.is_logged_in) {
+    if (this._context.iphoneSupport && this._context.is_logged_in) {
       try {
         if (!this._iphone_struct_) {
           const data = await this._context.get_iphone_json(
@@ -1590,7 +1554,7 @@ export class Story {
 
   protected async _fetchIphoneStruct(): Promise<void> {
     if (
-      this._context.iphone_support &&
+      this._context.iphoneSupport &&
       this._context.is_logged_in &&
       !this._iphone_struct_
     ) {
@@ -1706,7 +1670,7 @@ export class Highlight extends Story {
 
   protected override async _fetchIphoneStruct(): Promise<void> {
     if (
-      this._context.iphone_support &&
+      this._context.iphoneSupport &&
       this._context.is_logged_in &&
       !this._iphone_struct_
     ) {
@@ -1941,7 +1905,7 @@ export class TopSearchResults {
 
   private async _ensureLoaded(): Promise<JsonObject> {
     if (!this._node) {
-      this._node = await this._context.get_json('web/search/topsearch/', {
+      this._node = await this._context.getJson('web/search/topsearch/', {
         context: 'blended',
         query: this._searchstring,
         include_reel: false,

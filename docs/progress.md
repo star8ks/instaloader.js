@@ -13,9 +13,9 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Exceptions | `exceptions.py` | `exceptions.ts` | Done |
 | Types | N/A | `types.ts` | Done |
 | Structures | `structures.py` | `structures.ts` | Done |
-| Node Iterator | `nodeiterator.py` | `nodeiterator.ts` | Not Started |
+| Node Iterator | `nodeiterator.py` | `nodeiterator.ts` | Done |
 | Context | `instaloadercontext.py` | `instaloadercontext.ts` | Done |
-| Main Class | `instaloader.py` | `instaloader.ts` | Not Started |
+| Main Class | `instaloader.py` | `instaloader.ts` | Done (partial) |
 | CLI | `__main__.py` | `cli.ts` | Not Started |
 
 ### Supporting Tasks
@@ -28,6 +28,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Unit tests for exceptions | Not Started |
 | Unit tests for structures | Done (139 tests) |
 | Unit tests for InstaloaderContext | Done (66 tests) |
+| Unit tests for NodeIterator | Done (21 tests) |
 | Integration tests | Not Started |
 
 ## Current Progress
@@ -95,15 +96,35 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
      - iPhone API
      - Login and 2FA
 
+9. **nodeiterator.ts** (~500 lines)
+   - NodeIterator class for paginated GraphQL results
+   - FrozenNodeIterator for serializing iterator state
+   - Async iterator pattern with Symbol.asyncIterator
+   - Freeze/thaw for resumable downloads
+   - resumableIteration helper function
+
+10. **Unit Tests for NodeIterator** (21 tests)
+    - `nodeiterator.test.ts` - Tests for FrozenNodeIterator, NodeIterator, resumableIteration
+
+11. **instaloader.ts** (~830 lines)
+    - Instaloader main class for downloading content
+    - Session management (save/load to file)
+    - Download methods (downloadPic, downloadPost, downloadProfile, downloadHashtag)
+    - File naming and path sanitization utilities
+    - Note: Some features like Profile.getPosts() need NodeIterator integration
+
 ## Next Steps
 
-1. **Port NodeIterator** (Priority: High)
-   - Async iterator for paginated results
-   - Freeze/thaw for resumable downloads
+1. **Add getPosts() to Profile and Hashtag** (Priority: High)
+   - Requires integrating NodeIterator with structures
+   - Will enable full post downloading functionality
 
-2. **Port main Instaloader class** (Priority: Medium)
-   - Download orchestration
-   - File saving utilities
+2. **Add Instaloader tests** (Priority: Medium)
+   - Test download methods
+   - Test session management
+
+3. **CLI implementation** (Priority: Low)
+   - Command-line interface for downloading
 
 ## Architecture Notes
 
@@ -122,8 +143,8 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | exceptions.py | 84 | exceptions.ts | 243 | More verbose with JSDoc |
 | structures.py | 2,255 | structures.ts | ~1,800 | Similar complexity |
 | instaloadercontext.py | 885 | instaloadercontext.ts | ~1,100 | HTTP client ported |
-| nodeiterator.py | 329 | - | - | Not started |
-| instaloader.py | 1,669 | - | - | Not started |
+| nodeiterator.py | 329 | nodeiterator.ts | ~500 | Async iterator pattern |
+| instaloader.py | 1,669 | instaloader.ts | ~830 | Partial port (core features) |
 
 ## Dependencies
 

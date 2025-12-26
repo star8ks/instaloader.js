@@ -1,5 +1,53 @@
 # Change Log
 
+## 2024-12-27: Port NodeIterator and Instaloader
+
+### Summary
+Ported NodeIterator for paginated GraphQL results and Instaloader main class for downloading content.
+
+### New Files
+- `src/nodeiterator.ts` (~500 lines) - Async iterator for paginated results
+- `src/instaloader.ts` (~830 lines) - Main download orchestration class
+- `src/__tests__/nodeiterator.test.ts` - Tests for NodeIterator (21 tests)
+
+### Classes Ported
+
+| Class | Description |
+|-------|-------------|
+| `FrozenNodeIterator` | Serializable state for resumable downloads |
+| `NodeIterator` | Async iterator for GraphQL pagination with freeze/thaw support |
+| `Instaloader` | Main class for downloading Instagram content |
+
+### Key Features
+- **NodeIterator**: Full async iterator implementation with `Symbol.asyncIterator`
+- **FrozenNodeIterator**: Save/restore iterator state for resumable downloads
+- **resumableIteration**: High-level helper for resumable iteration
+- **Instaloader**: Session management, download methods, file naming
+
+### Instaloader Methods
+- `login()`, `twoFactorLogin()` - Authentication
+- `saveSessionToFile()`, `loadSessionFromFile()` - Session persistence
+- `downloadPic()` - Download individual media files
+- `downloadPost()` - Download complete post (images, videos, metadata)
+- `downloadProfile()` - Download profile picture
+- `downloadHashtag()` - Download hashtag posts (pending getPosts implementation)
+- `getProfile()`, `getPost()`, `getHashtag()` - Fetch Instagram objects
+
+### Breaking Changes
+- Updated structures.ts to import real InstaloaderContext instead of placeholder
+- Changed method names to camelCase: `iphone_support` -> `iphoneSupport`
+
+### Verification
+- `npm run test` - 226 tests pass
+- `npm run typecheck` - Passes
+- `npm run build` - Builds successfully
+
+### Known Limitations
+- `Profile.getPosts()` and `Hashtag.getPosts()` not yet implemented
+- CLI not yet implemented
+
+---
+
 ## 2024-12-27: Add Unit Tests for InstaloaderContext
 
 ### Summary

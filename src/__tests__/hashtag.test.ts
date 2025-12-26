@@ -4,25 +4,25 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Hashtag, TopSearchResults, Profile, Post } from '../structures';
-import type { InstaloaderContext } from '../structures';
+import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
 
-// Mock InstaloaderContext
-function createMockContext(overrides: Partial<InstaloaderContext> = {}): InstaloaderContext {
+// Mock InstaloaderContext - use unknown cast for partial mock
+function createMockContext(overrides: Record<string, unknown> = {}): InstaloaderContext {
   return {
-    iphone_support: false,
+    iphoneSupport: false,
     is_logged_in: false,
     username: null,
     profile_id_cache: new Map(),
     graphql_query: vi.fn(),
     doc_id_graphql_query: vi.fn(),
-    get_json: vi.fn(),
+    getJson: vi.fn(),
     get_iphone_json: vi.fn(),
     head: vi.fn(),
     error: vi.fn(),
     log: vi.fn(),
     ...overrides,
-  };
+  } as unknown as InstaloaderContext;
 }
 
 // Sample hashtag node data
@@ -238,7 +238,7 @@ describe('TopSearchResults', () => {
   describe('constructor', () => {
     it('should create TopSearchResults', () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'test');
       expect(results).toBeInstanceOf(TopSearchResults);
@@ -246,7 +246,7 @@ describe('TopSearchResults', () => {
 
     it('should store searchstring', () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'mysearch');
       expect(results.searchstring).toBe('mysearch');
@@ -256,7 +256,7 @@ describe('TopSearchResults', () => {
   describe('getProfiles', () => {
     it('should yield Profile instances', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'test');
       const profiles: Profile[] = [];
@@ -272,7 +272,7 @@ describe('TopSearchResults', () => {
   describe('getPrefixedUsernames', () => {
     it('should yield usernames starting with search string', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'test');
       const usernames: string[] = [];
@@ -285,7 +285,7 @@ describe('TopSearchResults', () => {
 
     it('should filter out non-matching usernames', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue({
+        getJson: vi.fn().mockResolvedValue({
           users: [
             { user: { pk: '1', username: 'testuser' } },
             { user: { pk: '2', username: 'other' } },
@@ -305,7 +305,7 @@ describe('TopSearchResults', () => {
   describe('getLocations', () => {
     it('should yield PostLocation objects', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'new york');
       const locations: Array<{ id: number; name: string }> = [];
@@ -321,7 +321,7 @@ describe('TopSearchResults', () => {
   describe('getHashtagStrings', () => {
     it('should yield hashtag name strings', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'test');
       const hashtags: string[] = [];
@@ -336,7 +336,7 @@ describe('TopSearchResults', () => {
   describe('getHashtags', () => {
     it('should yield Hashtag instances', async () => {
       const context = createMockContext({
-        get_json: vi.fn().mockResolvedValue(sampleSearchResults),
+        getJson: vi.fn().mockResolvedValue(sampleSearchResults),
       });
       const results = new TopSearchResults(context, 'test');
       const hashtags: Hashtag[] = [];

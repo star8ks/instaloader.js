@@ -434,10 +434,16 @@ export class InstaloaderContext {
 
   /**
    * Log a message to stdout (can be suppressed with quiet option).
+   * @param message - The message to log
+   * @param newline - Whether to add a newline (default true, false for inline messages)
    */
-  log(message: string): void {
+  log(message: string, newline = true): void {
     if (!this.quiet) {
-      console.log(message);
+      if (newline) {
+        console.log(message);
+      } else {
+        process.stdout.write(message);
+      }
     }
   }
 
