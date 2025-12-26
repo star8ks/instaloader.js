@@ -1,5 +1,30 @@
 # Change Log
 
+## 2024-12-27: Add Instaloader Unit Tests
+
+### Summary
+Added comprehensive unit tests for Instaloader class and utility functions.
+
+### New Tests (36 tests in instaloader.test.ts)
+
+- **getConfigDir**: Tests for Unix/Windows config path detection
+- **getDefaultSessionFilename**: Session filename generation
+- **getDefaultStampsFilename**: Stamps filename generation
+- **formatStringContainsKey**: Format string key detection with modifiers
+- **sanitizePath**: Path sanitization for various edge cases
+- **formatFilename**: Filename pattern replacement
+- **Instaloader class**: Constructor options, configuration, methods
+
+### Bug Fixes
+- Fixed `formatStringContainsKey` to handle `:` format spec modifiers (e.g., `{date_utc:%Y-%m-%d}`)
+
+### Verification
+- `npm run test` - 268 tests pass
+- `npm run typecheck` - Passes
+- `npm run build` - Builds successfully
+
+---
+
 ## 2024-12-27: Add getPosts() Methods to Profile and Hashtag
 
 ### Summary

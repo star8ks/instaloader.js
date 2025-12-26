@@ -29,6 +29,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Unit tests for structures | Done (145 tests) |
 | Unit tests for InstaloaderContext | Done (66 tests) |
 | Unit tests for NodeIterator | Done (21 tests) |
+| Unit tests for Instaloader | Done (36 tests) |
 | Integration tests | Not Started |
 
 ## Current Progress
@@ -123,8 +124,9 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 ## Next Steps
 
 1. **Add Instaloader tests** (Priority: Medium)
-   - Test download methods
-   - Test session management
+   - ~~Test download methods~~ Done (36 tests)
+   - ~~Test session management~~ Done
+   - ~~Test utility functions~~ Done
 
 2. **CLI implementation** (Priority: Low)
    - Command-line interface for downloading

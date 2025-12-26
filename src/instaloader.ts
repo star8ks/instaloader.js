@@ -107,8 +107,9 @@ export function getDefaultStampsFilename(): string {
  * Check if a format string contains a specific key.
  */
 export function formatStringContainsKey(formatString: string, key: string): boolean {
-  // Simple regex to find {key} or {key.something} patterns
-  const pattern = new RegExp(`\\{${key}(?:\\.[^}]*)?\\}`, 'g');
+  // Regex to find {key} or {key.something} or {key:format_spec} patterns
+  // Matches: {key}, {key.attr}, {key:spec}, {key.attr:spec}
+  const pattern = new RegExp(`\\{${key}(?:\\.[^:}]*)?(?::[^}]*)?\\}`, 'g');
   return pattern.test(formatString);
 }
 
