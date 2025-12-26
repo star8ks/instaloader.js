@@ -84,7 +84,7 @@ describe('RateController', () => {
   describe('handle429', () => {
     it('should log error message', async () => {
       const errorSpy = vi.spyOn(context, 'error').mockImplementation(() => {});
-      const sleepSpy = vi.spyOn(controller, 'sleep').mockResolvedValue();
+      vi.spyOn(controller, 'sleep').mockResolvedValue();
 
       await controller.handle429('testquery');
 

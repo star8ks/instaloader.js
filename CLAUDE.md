@@ -65,6 +65,15 @@ When porting from Python, reference the submodule at `/instaloader/instaloader/`
 - Refactor after tests pass while keeping tests green
 - Every new feature or bug fix should start with a test
 
+### 测试质量规则（严禁违反）
+
+- **测试必须导入并测试实际代码**：测试文件必须 `import` 要测试的函数/模块/组件，并对其进行真实调用和断言。
+- **禁止 mock-only 测试**：不允许只创建 mock 数据然后断言 mock 数据本身的测试，这种测试毫无意义。
+- **禁止重复实现被测代码**：不允许在测试文件中重新实现要测试的函数逻辑，必须导入原始实现。
+- **如果函数是私有的**：要么将其导出以便测试，要么通过公共 API 间接测试其行为。
+- **测试不可测代码时必须先重构**：如果逻辑内联在不可测的位置（如回调函数、路由处理器内部），必须**先提取为独立函数/类**，然后再为提取后的代码编写测试。
+- **不可依赖 UI 文字**：不要使用 `page.getByPlaceholder('给 Vibe Writer 一条指令')` 这种依赖 UI 文字的方式来测试，因为 placeholder 文字可能会变更，导致测试不稳定。应该给对应的元素加上 `data-testid` 并使用对应的选择器。
+
 ### Task Context
 
 - **Always read `docs/progress.md` at the start of each new conversation** to understand the overall plan and current progress
