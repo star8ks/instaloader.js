@@ -1,5 +1,32 @@
 # Change Log
 
+## 2024-12-27: Add Unit Tests for Data Models
+
+### Summary
+Added comprehensive unit tests for all data model classes.
+
+### Test Files Added
+- `src/__tests__/helpers.test.ts` - Tests for helper functions (24 tests)
+- `src/__tests__/post.test.ts` - Tests for Post class (31 tests)
+- `src/__tests__/profile.test.ts` - Tests for Profile class (25 tests)
+- `src/__tests__/story.test.ts` - Tests for StoryItem, Story, Highlight (35 tests)
+- `src/__tests__/hashtag.test.ts` - Tests for Hashtag, TopSearchResults (24 tests)
+
+### Test Coverage
+- **Total: 139 tests passing**
+- Helper functions: shortcodeToMediaid, mediaidToShortcode, extractHashtags, extractMentions
+- Post class: constructor, properties, video, sidecar, equality, JSON serialization
+- Profile class: constructor, properties, async metadata, equality, JSON serialization
+- StoryItem/Story/Highlight: constructor, properties, iteration, equality
+- Hashtag/TopSearchResults: constructor, properties, search results iteration
+
+### Testing Approach
+- Used vitest with mock InstaloaderContext
+- Created sample node data matching Instagram API response structure
+- Tested both sync properties and async methods
+
+---
+
 ## 2024-12-27: Port Data Models from Python structures.py
 
 ### Summary

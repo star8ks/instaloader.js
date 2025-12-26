@@ -26,7 +26,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Build configuration (tsup) | Done |
 | Test setup (vitest) | Done |
 | Unit tests for exceptions | Not Started |
-| Unit tests for structures | Not Started |
+| Unit tests for structures | Done (139 tests) |
 | Integration tests | Not Started |
 
 ## Current Progress
@@ -67,25 +67,27 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 5. **index.ts**
    - Exports all public APIs
 
+6. **Unit Tests for Structures** (139 tests)
+   - `helpers.test.ts` - shortcodeToMediaid, mediaidToShortcode, extractHashtags, extractMentions
+   - `post.test.ts` - Post class properties, video, sidecar, equality
+   - `profile.test.ts` - Profile class properties, async metadata
+   - `story.test.ts` - StoryItem, Story, Highlight classes
+   - `hashtag.test.ts` - Hashtag, TopSearchResults classes
+
 ## Next Steps
 
-1. **Write tests for data models** (Priority: High)
-   - Test Post, Profile, StoryItem classes
-   - Test helper functions
-   - Test JSON serialization
-
-2. **Port InstaloaderContext** (Priority: High)
+1. **Port InstaloaderContext** (Priority: High)
    - HTTP client with fetch API
    - Cookie management with tough-cookie
    - GraphQL query handling
    - Rate limiting
    - Login/session management
 
-3. **Port NodeIterator** (Priority: Medium)
+2. **Port NodeIterator** (Priority: Medium)
    - Async iterator for paginated results
    - Freeze/thaw for resumable downloads
 
-4. **Port main Instaloader class** (Priority: Medium)
+3. **Port main Instaloader class** (Priority: Medium)
    - Download orchestration
    - File saving utilities
 
