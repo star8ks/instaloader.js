@@ -58,6 +58,13 @@ When porting from Python, reference the submodule at `/instaloader/instaloader/`
 
 ## Guidelines
 
+### Test-Driven Development
+- **Critical**: Follow strict Test-Driven Development (TDD) - always write tests first, then implement
+- Write failing tests that define the expected behavior before writing any implementation code
+- Only write enough implementation code to make the tests pass
+- Refactor after tests pass while keeping tests green
+- Every new feature or bug fix should start with a test
+
 ### Task Context
 
 - **Always read `docs/progress.md` at the start of each new conversation** to understand the overall plan and current progress

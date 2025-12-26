@@ -1,5 +1,34 @@
 # Change Log
 
+## 2024-12-27: Add Unit Tests for InstaloaderContext
+
+### Summary
+Added comprehensive unit tests for RateController and InstaloaderContext classes.
+
+### Test Files Added
+- `src/__tests__/ratecontroller.test.ts` - Tests for RateController (10 tests)
+- `src/__tests__/instaloadercontext.test.ts` - Tests for InstaloaderContext (56 tests)
+
+### Test Coverage
+- **Total: 205 tests passing** (139 + 66 new)
+- RateController: constructor, countPerSlidingWindow, queryWaittime, waitBeforeQuery, sleep, handle429
+- InstaloaderContext: constructor options, is_logged_in, username/userId, cookies
+- Session management: getCookies, setCookies, saveSession, loadSession
+- HTTP requests: getJson (GET/POST), graphql_query, doc_id_graphql_query, get_iphone_json, head
+- Error handling: 400, 403, 404, 429, fatal status codes
+- Login flow: login, 2FA, error handling
+
+### Testing Approach
+- Used vitest with `vi.stubGlobal('fetch', mockFetch)` to mock fetch API
+- Created mock InstaloaderContext using `vi.fn()` for method mocks
+- Set `maxConnectionAttempts: 1` in error tests to avoid retry issues
+
+### Verification
+- `npm run test` - 205 tests pass
+- `npm run typecheck` - Passes
+
+---
+
 ## 2024-12-27: Port InstaloaderContext
 
 ### Summary

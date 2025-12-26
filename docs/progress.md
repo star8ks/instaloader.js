@@ -27,6 +27,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Test setup (vitest) | Done |
 | Unit tests for exceptions | Not Started |
 | Unit tests for structures | Done (139 tests) |
+| Unit tests for InstaloaderContext | Done (66 tests) |
 | Integration tests | Not Started |
 
 ## Current Progress
@@ -83,6 +84,17 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
    - Login with 2FA support
    - Session save/load
 
+8. **Unit Tests for InstaloaderContext** (66 tests)
+   - `ratecontroller.test.ts` - RateController class (10 tests)
+   - `instaloadercontext.test.ts` - InstaloaderContext class (56 tests)
+     - Constructor options
+     - Cookie management
+     - Session save/load
+     - HTTP requests (GET, POST, HEAD)
+     - GraphQL queries
+     - iPhone API
+     - Login and 2FA
+
 ## Next Steps
 
 1. **Port NodeIterator** (Priority: High)
@@ -109,7 +121,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 |--------|-------|------------|-------|-------|
 | exceptions.py | 84 | exceptions.ts | 243 | More verbose with JSDoc |
 | structures.py | 2,255 | structures.ts | ~1,800 | Similar complexity |
-| instaloadercontext.py | 885 | - | - | Not started |
+| instaloadercontext.py | 885 | instaloadercontext.ts | ~1,100 | HTTP client ported |
 | nodeiterator.py | 329 | - | - | Not started |
 | instaloader.py | 1,669 | - | - | Not started |
 
