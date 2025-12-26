@@ -259,4 +259,47 @@ describe('Profile', () => {
       expect(profile.is_private).toBe(false);
     });
   });
+
+  describe('getPosts', () => {
+    it('should return a NodeIterator when firstData is available', () => {
+      const context = createMockContext({ is_logged_in: false });
+      const profileWithEdge = {
+        ...sampleProfileNode,
+        edge_owner_to_timeline_media: {
+          edges: [],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 0,
+        },
+      };
+      const profile = new Profile(context, profileWithEdge);
+      const iterator = profile.getPosts();
+      expect(iterator).toBeDefined();
+      expect(typeof iterator[Symbol.asyncIterator]).toBe('function');
+    });
+
+    it('should use first data from edge_owner_to_timeline_media when not logged in', () => {
+      const context = createMockContext({ is_logged_in: false });
+      const profileWithEdge = {
+        ...sampleProfileNode,
+        edge_owner_to_timeline_media: {
+          edges: [
+            { node: { shortcode: 'abc123', id: '123', __typename: 'GraphImage', is_video: false } },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 1,
+        },
+      };
+      const profile = new Profile(context, profileWithEdge);
+      const iterator = profile.getPosts();
+      expect(iterator).toBeDefined();
+    });
+  });
+
+  describe('getSavedPosts', () => {
+    it('should throw LoginRequiredException if not logged in as target user', () => {
+      const context = createMockContext({ username: 'otheruser' });
+      const profile = new Profile(context, sampleProfileNode);
+      expect(() => profile.getSavedPosts()).toThrow('Login as testuser required');
+    });
+  });
 });

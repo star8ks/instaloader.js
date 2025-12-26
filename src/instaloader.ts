@@ -749,11 +749,40 @@ export class Instaloader {
       await this.downloadProfilePic(profile);
     }
 
-    // TODO: Download posts requires Profile.getPosts() which uses NodeIterator
-    // This will be implemented when we add getPosts() to Profile class
-    if (maxCount !== undefined || postFilter !== undefined || fastUpdate) {
-      this.context.log('Note: Post downloading requires getPosts() method on Profile - not yet implemented');
+    // Download posts
+    let count = 0;
+    const postIterator = profile.getPosts();
+    for await (const post of postIterator) {
+      // Check max count
+      if (maxCount !== undefined && count >= maxCount) {
+        break;
+      }
+
+      // Apply post filter
+      if (postFilter && !postFilter(post)) {
+        continue;
+      }
+
+      // Fast update mode - stop when we encounter an already downloaded post
+      if (fastUpdate) {
+        const dirname = formatFilename(this.dirnamePattern, post, target, this.sanitizePaths);
+        const postBasename = formatFilename(this.filenamePattern, post, target, this.sanitizePaths);
+        const metadataPath = path.join(dirname, `${postBasename}.json`);
+        try {
+          await fs.promises.access(metadataPath);
+          this.context.log(`Fast update: Stopping at already downloaded post ${post.shortcode}`);
+          break;
+        } catch {
+          // File doesn't exist, continue downloading
+        }
+      }
+
+      // Download the post
+      await this.downloadPost(post, target);
+      count++;
     }
+
+    this.context.log(`Downloaded ${count} posts from ${target}`);
 
     // Download stories (requires login)
     if (downloadStories && this.context.is_logged_in) {
@@ -784,21 +813,59 @@ export class Instaloader {
 
   /**
    * Download posts for a hashtag.
-   * Note: This requires Hashtag.getPosts() which is not yet implemented.
    */
   async downloadHashtag(
     hashtag: Hashtag,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _options: {
+    options: {
       maxCount?: number;
       postFilter?: (post: Post) => boolean;
+      resumable?: boolean;
     } = {}
   ): Promise<void> {
+    const { maxCount, postFilter, resumable = true } = options;
     const target = `#${hashtag.name}`;
     this.context.log(`Downloading hashtag ${target}...`);
 
-    // TODO: Implement when Hashtag.getPosts() is available
-    this.context.log('Note: Post downloading requires getPosts() method on Hashtag - not yet implemented');
+    let count = 0;
+
+    if (resumable) {
+      // Use resumable iterator
+      const postIterator = hashtag.getPostsResumable();
+      for await (const post of postIterator) {
+        // Check max count
+        if (maxCount !== undefined && count >= maxCount) {
+          break;
+        }
+
+        // Apply post filter
+        if (postFilter && !postFilter(post)) {
+          continue;
+        }
+
+        // Download the post
+        await this.downloadPost(post, hashtag.name);
+        count++;
+      }
+    } else {
+      // Use deprecated simple iterator
+      for await (const post of hashtag.getPosts()) {
+        // Check max count
+        if (maxCount !== undefined && count >= maxCount) {
+          break;
+        }
+
+        // Apply post filter
+        if (postFilter && !postFilter(post)) {
+          continue;
+        }
+
+        // Download the post
+        await this.downloadPost(post, hashtag.name);
+        count++;
+      }
+    }
+
+    this.context.log(`Downloaded ${count} posts from ${target}`);
   }
 
   /**

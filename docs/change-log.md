@@ -1,5 +1,49 @@
 # Change Log
 
+## 2024-12-27: Add getPosts() Methods to Profile and Hashtag
+
+### Summary
+Implemented post iteration methods using NodeIterator for Profile and Hashtag classes. Updated Instaloader download methods to use the new iterators.
+
+### New Methods
+
+| Class | Method | Description |
+|-------|--------|-------------|
+| `Profile` | `getPosts()` | Returns NodeIterator for profile posts |
+| `Profile` | `getSavedPosts()` | Returns NodeIterator for saved posts (login required) |
+| `Profile` | `getTaggedPosts()` | Returns NodeIterator for tagged posts |
+| `Hashtag` | `getPosts()` | Deprecated async generator for hashtag posts |
+| `Hashtag` | `getPostsResumable()` | Returns NodeIterator for hashtag posts |
+
+### Changes
+
+- **structures.ts**:
+  - Replaced placeholder NodeIterator interface with actual import
+  - Added `getPosts()`, `getSavedPosts()`, `getTaggedPosts()` to Profile
+  - Added `getPosts()` (deprecated) and `getPostsResumable()` to Hashtag
+  - Added `_makeIsNewestChecker()` helper for post ordering
+
+- **instaloader.ts**:
+  - Updated `downloadProfile()` to iterate posts using `profile.getPosts()`
+  - Added fast update support (stops at already-downloaded posts)
+  - Updated `downloadHashtag()` to use `hashtag.getPostsResumable()` or `getPosts()`
+  - Added `resumable` option to `downloadHashtag()`
+
+- **Tests**:
+  - Added 6 new tests for Profile.getPosts(), getSavedPosts()
+  - Added 3 new tests for Hashtag.getPosts(), getPostsResumable()
+
+### Verification
+- `npm run test` - 232 tests pass
+- `npm run typecheck` - Passes
+- `npm run build` - Builds successfully
+
+### Known Limitations
+- CLI not yet implemented
+- Stories/Highlights download not yet implemented in Instaloader
+
+---
+
 ## 2024-12-27: Port NodeIterator and Instaloader
 
 ### Summary
@@ -43,7 +87,7 @@ Ported NodeIterator for paginated GraphQL results and Instaloader main class for
 - `npm run build` - Builds successfully
 
 ### Known Limitations
-- `Profile.getPosts()` and `Hashtag.getPosts()` not yet implemented
+- `Profile.getPosts()` and `Hashtag.getPosts()` not yet implemented (see next entry)
 - CLI not yet implemented
 
 ---

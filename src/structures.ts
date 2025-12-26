@@ -13,24 +13,13 @@ import {
   QueryReturnedNotFoundException,
 } from './exceptions';
 import type { InstaloaderContext } from './instaloadercontext';
-import type { JsonObject, JsonValue, FrozenIteratorState } from './types';
+import type { JsonObject, JsonValue } from './types';
+import { NodeIterator } from './nodeiterator';
 
 // Re-export InstaloaderContext type for use by consumers who import from structures
 export type { InstaloaderContext } from './instaloadercontext';
-
-/**
- * Placeholder for NodeIterator.
- * Will be replaced with actual implementation when nodeiterator.ts is ported.
- */
-export interface NodeIterator<T> extends AsyncIterable<T> {
-  readonly count: number | null;
-  readonly total_index: number;
-  readonly magic: string;
-  readonly first_item: T | null;
-
-  freeze(): FrozenIteratorState;
-  thaw(frozen: FrozenIteratorState): void;
-}
+// Re-export NodeIterator for consumers
+export { NodeIterator } from './nodeiterator';
 
 // =============================================================================
 // Regex patterns for parsing captions
@@ -1243,6 +1232,122 @@ export class Profile {
     return (await this.getMetadata('profile_pic_url_hd')) as string;
   }
 
+  /**
+   * Helper to check if a post is newer than the current first post.
+   * Used for determining the "first" (newest) post in an iteration.
+   */
+  private static _makeIsNewestChecker(): (item: Post, currentFirst: Post | null) => boolean {
+    return (item: Post, currentFirst: Post | null) => {
+      if (currentFirst === null) {
+        return true;
+      }
+      return item.date.getTime() > currentFirst.date.getTime();
+    };
+  }
+
+  /**
+   * Retrieve all posts from a profile.
+   *
+   * @returns NodeIterator[Post]
+   */
+  getPosts(): NodeIterator<Post> {
+    const loggedIn = this._context.is_logged_in;
+
+    // Get first data from metadata if not logged in
+    let firstData: { edges: Array<{ node: JsonObject }>; page_info: { has_next_page: boolean; end_cursor: string | null }; count?: number } | undefined;
+    if (!loggedIn) {
+      try {
+        const edgeData = this._metadata('edge_owner_to_timeline_media') as JsonObject;
+        const countValue = edgeData['count'];
+        const baseData = {
+          edges: ((edgeData['edges'] as Array<JsonObject>) || []).map(e => ({ node: (e['node'] || e) as JsonObject })),
+          page_info: (edgeData['page_info'] || { has_next_page: false, end_cursor: null }) as { has_next_page: boolean; end_cursor: string | null },
+        };
+        // Only add count if it's actually a number (not undefined)
+        firstData = typeof countValue === 'number'
+          ? { ...baseData, count: countValue }
+          : baseData;
+      } catch {
+        // No first data available
+      }
+    }
+
+    const baseOptions = {
+      context: this._context,
+      queryHash: null as string | null,
+      edgeExtractor: loggedIn
+        ? (d: JsonObject) => (d['data'] as JsonObject)['xdt_api__v1__feed__user_timeline_graphql_connection'] as JsonObject
+        : (d: JsonObject) => ((d['data'] as JsonObject)['user'] as JsonObject)['edge_owner_to_timeline_media'] as JsonObject,
+      nodeWrapper: loggedIn
+        ? (n: JsonObject) => Post.fromIphoneStruct(this._context, n)
+        : (n: JsonObject) => new Post(this._context, n, this),
+      queryVariables: {
+        data: {
+          count: 12,
+          include_relationship_info: true,
+          latest_besties_reel_media: true,
+          latest_reel_media: true,
+        },
+        ...(loggedIn ? { username: this.username } : { id: this.userid }),
+      },
+      queryReferer: `https://www.instagram.com/${this.username}/`,
+      isFirst: Profile._makeIsNewestChecker(),
+      docId: loggedIn ? '7898261790222653' : '7950326061742207',
+    };
+
+    // Only include firstData if it's defined
+    if (firstData !== undefined) {
+      return new NodeIterator<Post>({ ...baseOptions, firstData });
+    }
+    return new NodeIterator<Post>(baseOptions);
+  }
+
+  /**
+   * Get Posts that are marked as saved by the user.
+   *
+   * @returns NodeIterator[Post]
+   * @throws LoginRequiredException if not logged in as the target profile
+   */
+  getSavedPosts(): NodeIterator<Post> {
+    if (this.username !== this._context.username) {
+      throw new LoginRequiredException(
+        `Login as ${this.username} required to get that profile's saved posts.`
+      );
+    }
+
+    return new NodeIterator<Post>({
+      context: this._context,
+      queryHash: 'f883d95537fbcd400f466f63d42bd8a1',
+      edgeExtractor: (d: JsonObject) =>
+        ((d['data'] as JsonObject)['user'] as JsonObject)['edge_saved_media'] as JsonObject,
+      nodeWrapper: (n: JsonObject) => new Post(this._context, n),
+      queryVariables: { id: this.userid },
+      queryReferer: `https://www.instagram.com/${this.username}/`,
+    });
+  }
+
+  /**
+   * Retrieve all posts where a profile is tagged.
+   *
+   * @returns NodeIterator[Post]
+   */
+  getTaggedPosts(): NodeIterator<Post> {
+    return new NodeIterator<Post>({
+      context: this._context,
+      queryHash: 'e31a871f7301132ceaab56507a66bbb7',
+      edgeExtractor: (d: JsonObject) =>
+        ((d['data'] as JsonObject)['user'] as JsonObject)['edge_user_to_photos_of_you'] as JsonObject,
+      nodeWrapper: (n: JsonObject) => {
+        const ownerId = Number((n['owner'] as JsonObject)['id']);
+        const ownerProfile = ownerId === this.userid ? this : undefined;
+        return new Post(this._context, n, ownerProfile);
+      },
+      queryVariables: { id: this.userid },
+      queryReferer: `https://www.instagram.com/${this.username}/`,
+      isFirst: Profile._makeIsNewestChecker(),
+    });
+  }
+
   /** Returns Profile as a JSON-serializable object. */
   toJSON(): JsonObject {
     const jsonNode = { ...this._node };
@@ -1871,6 +1976,54 @@ export class Hashtag {
       // Would need SectionIterator implementation
       // For now, just return nothing
     }
+  }
+
+  /**
+   * Yields the recent posts associated with this hashtag.
+   *
+   * @deprecated Use getPostsResumable() as this method may return incorrect results.
+   */
+  async *getPosts(): AsyncGenerator<Post> {
+    try {
+      let conn = (await this.getMetadata('edge_hashtag_to_media')) as JsonObject;
+      const edges = conn['edges'] as Array<JsonObject>;
+      for (const edge of edges) {
+        yield new Post(this._context, edge['node'] as JsonObject);
+      }
+      let pageInfo = conn['page_info'] as JsonObject;
+      while (pageInfo['has_next_page'] as boolean) {
+        const data = await this._query({
+          __a: 1,
+          max_id: pageInfo['end_cursor'] as string,
+        });
+        conn = data['edge_hashtag_to_media'] as JsonObject;
+        const newEdges = conn['edges'] as Array<JsonObject>;
+        for (const edge of newEdges) {
+          yield new Post(this._context, edge['node'] as JsonObject);
+        }
+        pageInfo = conn['page_info'] as JsonObject;
+      }
+    } catch {
+      // Would need SectionIterator implementation
+      // For now, just return nothing
+    }
+  }
+
+  /**
+   * Get the recent posts of the hashtag in a resumable fashion.
+   *
+   * @returns NodeIterator[Post]
+   */
+  getPostsResumable(): NodeIterator<Post> {
+    return new NodeIterator<Post>({
+      context: this._context,
+      queryHash: '9b498c08113f1e09617a1703c22b2f32',
+      edgeExtractor: (d: JsonObject) =>
+        ((d['data'] as JsonObject)['hashtag'] as JsonObject)['edge_hashtag_to_media'] as JsonObject,
+      nodeWrapper: (n: JsonObject) => new Post(this._context, n),
+      queryVariables: { tag_name: this.name },
+      queryReferer: `https://www.instagram.com/explore/tags/${this.name}/`,
+    });
   }
 
   /** Returns Hashtag as a JSON-serializable object. */

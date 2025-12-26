@@ -232,6 +232,59 @@ describe('Hashtag', () => {
       expect(json['edge_hashtag_to_media']).toBeUndefined();
     });
   });
+
+  describe('getPostsResumable', () => {
+    // Note: Testing getPostsResumable() in isolation would require mocking
+    // the GraphQL API. The method itself just creates a NodeIterator with
+    // the right configuration. Full integration tests would be needed to
+    // verify the iteration behavior.
+    it('should be a method', () => {
+      const context = createMockContext();
+      const hashtag = new Hashtag(context, sampleHashtagNode);
+      expect(typeof hashtag.getPostsResumable).toBe('function');
+    });
+  });
+
+  describe('getPosts', () => {
+    it('should return an async generator', () => {
+      const context = createMockContext();
+      const hashtagWithEdge = {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 0,
+        },
+      };
+      const hashtag = new Hashtag(context, hashtagWithEdge);
+      const generator = hashtag.getPosts();
+      expect(generator).toBeDefined();
+      expect(typeof generator[Symbol.asyncIterator]).toBe('function');
+    });
+
+    it('should yield posts when edge data is available', async () => {
+      const context = createMockContext();
+      const hashtagWithEdge = {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            { node: { shortcode: 'post1', id: '111', __typename: 'GraphImage', is_video: false } },
+            { node: { shortcode: 'post2', id: '222', __typename: 'GraphImage', is_video: false } },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 2,
+        },
+      };
+      const hashtag = new Hashtag(context, hashtagWithEdge);
+      const posts = [];
+      for await (const post of hashtag.getPosts()) {
+        posts.push(post);
+      }
+      expect(posts).toHaveLength(2);
+      expect(posts[0]?.shortcode).toBe('post1');
+      expect(posts[1]?.shortcode).toBe('post2');
+    });
+  });
 });
 
 describe('TopSearchResults', () => {

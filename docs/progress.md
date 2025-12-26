@@ -26,7 +26,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Build configuration (tsup) | Done |
 | Test setup (vitest) | Done |
 | Unit tests for exceptions | Not Started |
-| Unit tests for structures | Done (139 tests) |
+| Unit tests for structures | Done (145 tests) |
 | Unit tests for InstaloaderContext | Done (66 tests) |
 | Unit tests for NodeIterator | Done (21 tests) |
 | Integration tests | Not Started |
@@ -69,7 +69,7 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 5. **index.ts**
    - Exports all public APIs
 
-6. **Unit Tests for Structures** (139 tests)
+6. **Unit Tests for Structures** (145 tests)
    - `helpers.test.ts` - shortcodeToMediaid, mediaidToShortcode, extractHashtags, extractMentions
    - `post.test.ts` - Post class properties, video, sidecar, equality
    - `profile.test.ts` - Profile class properties, async metadata
@@ -111,20 +111,26 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
     - Session management (save/load to file)
     - Download methods (downloadPic, downloadPost, downloadProfile, downloadHashtag)
     - File naming and path sanitization utilities
-    - Note: Some features like Profile.getPosts() need NodeIterator integration
+    - Full integration with NodeIterator for post pagination
+
+12. **getPosts() methods** (2024-12-27)
+    - Profile.getPosts() - Retrieve all posts from a profile
+    - Profile.getSavedPosts() - Get saved posts (requires login)
+    - Profile.getTaggedPosts() - Get posts where profile is tagged
+    - Hashtag.getPosts() - Deprecated async generator for hashtag posts
+    - Hashtag.getPostsResumable() - NodeIterator for resumable hashtag iteration
 
 ## Next Steps
 
-1. **Add getPosts() to Profile and Hashtag** (Priority: High)
-   - Requires integrating NodeIterator with structures
-   - Will enable full post downloading functionality
-
-2. **Add Instaloader tests** (Priority: Medium)
+1. **Add Instaloader tests** (Priority: Medium)
    - Test download methods
    - Test session management
 
-3. **CLI implementation** (Priority: Low)
+2. **CLI implementation** (Priority: Low)
    - Command-line interface for downloading
+
+3. **Stories and Highlights download** (Priority: Medium)
+   - Implement story/highlight downloading in Instaloader
 
 ## Architecture Notes
 
