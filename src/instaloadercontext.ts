@@ -3,8 +3,6 @@
  * Ported from Python instaloader/instaloadercontext.py
  */
 
-import { CookieJar, Cookie } from 'tough-cookie';
-import { v4 as uuidv4 } from 'uuid';
 import {
   AbortDownloadException,
   BadCredentialsException,
@@ -20,6 +18,7 @@ import {
 } from './exceptions';
 import type { JsonObject, CookieData, HttpHeaders } from './types';
 import type { TwoFactorInfo } from './exceptions';
+import { generateUUID, SimpleCookieStore } from './utils';
 
 // =============================================================================
 // Helper functions
@@ -48,8 +47,7 @@ export function defaultIphoneHeaders(): HttpHeaders {
       'scale=2.00; 2048x2732; 674117118) AppleWebKit/420+',
     'x-ads-opt-out': '1',
     'x-bloks-is-panorama-enabled': 'true',
-    'x-bloks-version-id':
-      '16b7bd25c6c06886d57c4d455265669345a2d96625385b8ee30026ac2dc5ed97',
+    'x-bloks-version-id': '16b7bd25c6c06886d57c4d455265669345a2d96625385b8ee30026ac2dc5ed97',
     'x-fb-client-ip': 'True',
     'x-fb-connection-type': 'wifi',
     'x-fb-http-engine': 'Liger',
@@ -67,7 +65,7 @@ export function defaultIphoneHeaders(): HttpHeaders {
     'x-ig-mapped-locale': 'en-US',
     'x-ig-timezone-offset': String(timezoneOffset),
     'x-ig-www-claim': '0',
-    'x-pigeon-session-id': uuidv4(),
+    'x-pigeon-session-id': generateUUID(),
     'x-tigon-is-retry': 'False',
     'x-whatsapp': '0',
   };
@@ -81,7 +79,7 @@ export function getPerRequestHeaders(): HttpHeaders {
   return {
     'x-pigeon-rawclienttime': (Date.now() / 1000).toFixed(6),
     'x-ig-connection-speed': `${Math.floor(Math.random() * 19000) + 1000}kbps`,
-    'x-pigeon-session-id': uuidv4(),
+    'x-pigeon-session-id': generateUUID(),
   };
 }
 
@@ -153,11 +151,7 @@ export class RateController {
   /**
    * Calculate time needed to wait before query can be executed.
    */
-  queryWaittime(
-    queryType: string,
-    currentTime: number,
-    untrackedQueries = false
-  ): number {
+  queryWaittime(queryType: string, currentTime: number, untrackedQueries = false): number {
     const perTypeSlidingWindow = 660;
     const iphoneSlidingWindow = 1800;
 
@@ -167,17 +161,11 @@ export class RateController {
 
     // Clean up old timestamps (older than 1 hour)
     const timestamps = this._queryTimestamps.get(queryType)!;
-    const filteredTimestamps = timestamps.filter(
-      (t) => t > currentTime - 60 * 60
-    );
+    const filteredTimestamps = timestamps.filter((t) => t > currentTime - 60 * 60);
     this._queryTimestamps.set(queryType, filteredTimestamps);
 
     const perTypeNextRequestTime = (): number => {
-      const reqs = this._reqsInSlidingWindow(
-        queryType,
-        currentTime,
-        perTypeSlidingWindow
-      );
+      const reqs = this._reqsInSlidingWindow(queryType, currentTime, perTypeSlidingWindow);
       if (reqs.length < this.countPerSlidingWindow(queryType)) {
         return 0;
       } else {
@@ -191,11 +179,7 @@ export class RateController {
       }
       const gqlAccumulatedSlidingWindow = 600;
       const gqlAccumulatedMaxCount = 275;
-      const reqs = this._reqsInSlidingWindow(
-        null,
-        currentTime,
-        gqlAccumulatedSlidingWindow
-      );
+      const reqs = this._reqsInSlidingWindow(null, currentTime, gqlAccumulatedSlidingWindow);
       if (reqs.length < gqlAccumulatedMaxCount) {
         return 0;
       } else {
@@ -206,36 +190,19 @@ export class RateController {
     const untrackedNextRequestTime = (): number => {
       if (untrackedQueries) {
         if (queryType === 'iphone') {
-          const reqs = this._reqsInSlidingWindow(
-            queryType,
-            currentTime,
-            iphoneSlidingWindow
-          );
-          this._iphoneEarliestNextRequestTime =
-            Math.min(...reqs) + iphoneSlidingWindow + 18;
+          const reqs = this._reqsInSlidingWindow(queryType, currentTime, iphoneSlidingWindow);
+          this._iphoneEarliestNextRequestTime = Math.min(...reqs) + iphoneSlidingWindow + 18;
         } else {
-          const reqs = this._reqsInSlidingWindow(
-            queryType,
-            currentTime,
-            perTypeSlidingWindow
-          );
-          this._earliestNextRequestTime =
-            Math.min(...reqs) + perTypeSlidingWindow + 6;
+          const reqs = this._reqsInSlidingWindow(queryType, currentTime, perTypeSlidingWindow);
+          this._earliestNextRequestTime = Math.min(...reqs) + perTypeSlidingWindow + 6;
         }
       }
-      return Math.max(
-        this._iphoneEarliestNextRequestTime,
-        this._earliestNextRequestTime
-      );
+      return Math.max(this._iphoneEarliestNextRequestTime, this._earliestNextRequestTime);
     };
 
     const iphoneNextRequest = (): number => {
       if (queryType === 'iphone') {
-        const reqs = this._reqsInSlidingWindow(
-          queryType,
-          currentTime,
-          iphoneSlidingWindow
-        );
+        const reqs = this._reqsInSlidingWindow(queryType, currentTime, iphoneSlidingWindow);
         if (reqs.length >= 199) {
           return Math.min(...reqs) + iphoneSlidingWindow + 18;
         }
@@ -357,7 +324,7 @@ export class InstaloaderContext {
   readonly iphoneSupport: boolean;
   readonly fatalStatusCodes: number[];
 
-  private _cookieJar: CookieJar;
+  private _cookieStore: SimpleCookieStore;
   private _csrfToken: string | null = null;
   private _username: string | null = null;
   private _userId: string | null = null;
@@ -387,7 +354,7 @@ export class InstaloaderContext {
     this.iphoneSupport = options.iphoneSupport ?? true;
     this.fatalStatusCodes = options.fatalStatusCodes ?? [];
 
-    this._cookieJar = new CookieJar();
+    this._cookieStore = new SimpleCookieStore();
     this._iphoneHeaders = defaultIphoneHeaders();
 
     // Initialize anonymous session cookies
@@ -399,7 +366,7 @@ export class InstaloaderContext {
   }
 
   private _initAnonymousCookies(): void {
-    const domain = 'www.instagram.com';
+    const url = 'https://www.instagram.com/';
     const defaultCookies = {
       sessionid: '',
       mid: '',
@@ -409,16 +376,7 @@ export class InstaloaderContext {
       s_network: '',
       ds_user_id: '',
     };
-
-    for (const [name, value] of Object.entries(defaultCookies)) {
-      const cookie = new Cookie({
-        key: name,
-        value,
-        domain,
-        path: '/',
-      });
-      this._cookieJar.setCookieSync(cookie, `https://${domain}/`);
-    }
+    this._cookieStore.setCookies(defaultCookies, url);
   }
 
   /** True if this instance is logged in. */
@@ -524,28 +482,14 @@ export class InstaloaderContext {
    * Get cookies as a plain object.
    */
   getCookies(url = 'https://www.instagram.com/'): CookieData {
-    const cookies = this._cookieJar.getCookiesSync(url);
-    const result: CookieData = {};
-    for (const cookie of cookies) {
-      result[cookie.key] = cookie.value;
-    }
-    return result;
+    return this._cookieStore.getCookies(url);
   }
 
   /**
    * Set cookies from a plain object.
    */
   setCookies(cookies: CookieData, url = 'https://www.instagram.com/'): void {
-    const domain = new URL(url).hostname;
-    for (const [name, value] of Object.entries(cookies)) {
-      const cookie = new Cookie({
-        key: name,
-        value,
-        domain,
-        path: '/',
-      });
-      this._cookieJar.setCookieSync(cookie, url);
-    }
+    this._cookieStore.setCookies(cookies, url);
   }
 
   /**
@@ -559,7 +503,7 @@ export class InstaloaderContext {
    * Load session data from a saved session.
    */
   loadSession(username: string, sessionData: CookieData): void {
-    this._cookieJar = new CookieJar();
+    this._cookieStore = new SimpleCookieStore();
     this.setCookies(sessionData);
     this._csrfToken = sessionData['csrftoken'] || null;
     this._username = username;
@@ -574,28 +518,17 @@ export class InstaloaderContext {
   }
 
   /**
-   * Build cookie header string from cookie jar.
+   * Build cookie header string from cookie store.
    */
   private _getCookieHeader(url: string): string {
-    const cookies = this._cookieJar.getCookiesSync(url);
-    return cookies.map((c) => `${c.key}=${c.value}`).join('; ');
+    return this._cookieStore.getCookieHeader(url);
   }
 
   /**
    * Parse and store cookies from Set-Cookie headers.
    */
   private _storeCookies(url: string, headers: Headers): void {
-    const setCookies = headers.getSetCookie?.() || [];
-    for (const cookieStr of setCookies) {
-      try {
-        const cookie = Cookie.parse(cookieStr);
-        if (cookie) {
-          this._cookieJar.setCookieSync(cookie, url);
-        }
-      } catch {
-        // Ignore invalid cookies
-      }
-    }
+    this._cookieStore.parseSetCookieHeaders(headers, url);
   }
 
   /**
@@ -703,10 +636,7 @@ export class InstaloaderContext {
         });
       } else {
         for (const [key, value] of Object.entries(params)) {
-          url.searchParams.set(
-            key,
-            typeof value === 'string' ? value : JSON.stringify(value)
-          );
+          url.searchParams.set(key, typeof value === 'string' ? value : JSON.stringify(value));
         }
         response = await fetch(url.toString(), {
           method: 'GET',
@@ -738,9 +668,7 @@ export class InstaloaderContext {
             redirectUrl.startsWith('https://i.instagram.com/accounts/login')
           ) {
             if (!this.is_logged_in) {
-              throw new LoginRequiredException(
-                'Redirected to login page. Use login() first.'
-              );
+              throw new LoginRequiredException('Redirected to login page. Use login() first.');
             }
             throw new AbortDownloadException(
               "Redirected to login page. You've been logged out, please wait some time, recreate the session and try again"
@@ -1008,9 +936,7 @@ export class InstaloaderContext {
       );
     }
 
-    throw new ConnectionException(
-      this._responseError(response.status, response.statusText, url)
-    );
+    throw new ConnectionException(this._responseError(response.status, response.statusText, url));
   }
 
   /**
@@ -1034,8 +960,8 @@ export class InstaloaderContext {
    * Login to Instagram.
    */
   async login(username: string, password: string): Promise<void> {
-    // Initialize a fresh cookie jar
-    this._cookieJar = new CookieJar();
+    // Initialize a fresh cookie store
+    this._cookieStore = new SimpleCookieStore();
     this._initAnonymousCookies();
 
     // Make a request to get csrftoken
@@ -1105,19 +1031,27 @@ export class InstaloaderContext {
         identifier: twoFactorId,
       };
       if (twoFactorInfoResp['obfuscated_phone_number'] !== undefined) {
-        twoFactorInfo.obfuscatedPhoneNumber = twoFactorInfoResp['obfuscated_phone_number'] as string;
+        twoFactorInfo.obfuscatedPhoneNumber = twoFactorInfoResp[
+          'obfuscated_phone_number'
+        ] as string;
       }
       if (twoFactorInfoResp['show_messenger_code_option'] !== undefined) {
-        twoFactorInfo.showMessengerCodeOption = twoFactorInfoResp['show_messenger_code_option'] as boolean;
+        twoFactorInfo.showMessengerCodeOption = twoFactorInfoResp[
+          'show_messenger_code_option'
+        ] as boolean;
       }
       if (twoFactorInfoResp['show_new_login_screen'] !== undefined) {
         twoFactorInfo.showNewLoginScreen = twoFactorInfoResp['show_new_login_screen'] as boolean;
       }
       if (twoFactorInfoResp['show_trusted_device_option'] !== undefined) {
-        twoFactorInfo.showTrustedDeviceOption = twoFactorInfoResp['show_trusted_device_option'] as boolean;
+        twoFactorInfo.showTrustedDeviceOption = twoFactorInfoResp[
+          'show_trusted_device_option'
+        ] as boolean;
       }
       if (twoFactorInfoResp['pending_trusted_notification_polling'] !== undefined) {
-        twoFactorInfo.pendingTrustedNotificationPolling = twoFactorInfoResp['pending_trusted_notification_polling'] as boolean;
+        twoFactorInfo.pendingTrustedNotificationPolling = twoFactorInfoResp[
+          'pending_trusted_notification_polling'
+        ] as boolean;
       }
       throw new TwoFactorAuthRequiredException(
         twoFactorInfo,
@@ -1176,7 +1110,7 @@ export class InstaloaderContext {
     const { csrfToken, cookies, username, twoFactorId } = this._twoFactorAuthPending;
 
     // Restore cookies from 2FA pending state
-    this._cookieJar = new CookieJar();
+    this._cookieStore = new SimpleCookieStore();
     this.setCookies(cookies);
 
     const loginUrl = 'https://www.instagram.com/accounts/login/ajax/two_factor/';

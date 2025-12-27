@@ -8,10 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-import {
-  InstaloaderContext,
-  RateController,
-} from './instaloadercontext';
+import { InstaloaderContext, RateController } from './instaloadercontext';
 import { Post, Profile, StoryItem, Hashtag, getJsonStructure } from './structures';
 import {
   LoginRequiredException,
@@ -141,9 +138,28 @@ export function sanitizePath(str: string, forceWindowsPath = false): string {
 
     // Handle reserved Windows filenames
     const reserved = new Set([
-      'CON', 'PRN', 'AUX', 'NUL',
-      'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+      'CON',
+      'PRN',
+      'AUX',
+      'NUL',
+      'COM1',
+      'COM2',
+      'COM3',
+      'COM4',
+      'COM5',
+      'COM6',
+      'COM7',
+      'COM8',
+      'COM9',
+      'LPT1',
+      'LPT2',
+      'LPT3',
+      'LPT4',
+      'LPT5',
+      'LPT6',
+      'LPT7',
+      'LPT8',
+      'LPT9',
     ]);
 
     const ext = path.extname(result);
@@ -266,7 +282,9 @@ export class Instaloader {
       ...(options.sleep !== undefined && { sleep: options.sleep }),
       ...(options.quiet !== undefined && { quiet: options.quiet }),
       ...(options.userAgent !== undefined && { userAgent: options.userAgent }),
-      ...(options.maxConnectionAttempts !== undefined && { maxConnectionAttempts: options.maxConnectionAttempts }),
+      ...(options.maxConnectionAttempts !== undefined && {
+        maxConnectionAttempts: options.maxConnectionAttempts,
+      }),
       ...(options.requestTimeout !== undefined && { requestTimeout: options.requestTimeout }),
       ...(options.rateController !== undefined && { rateController: options.rateController }),
       ...(options.fatalStatusCodes !== undefined && { fatalStatusCodes: options.fatalStatusCodes }),
@@ -391,7 +409,7 @@ export class Instaloader {
    * Load session from file.
    */
   async loadSessionFromFile(username: string, filename?: string): Promise<void> {
-    let targetFile = filename ?? getDefaultSessionFilename(username);
+    const targetFile = filename ?? getDefaultSessionFilename(username);
 
     if (!fs.existsSync(targetFile)) {
       throw new Error(`Session file not found: ${targetFile}`);
@@ -466,7 +484,9 @@ export class Instaloader {
     });
 
     if (!response.ok) {
-      throw new ConnectionException(`Failed to download: ${response.status} ${response.statusText}`);
+      throw new ConnectionException(
+        `Failed to download: ${response.status} ${response.statusText}`
+      );
     }
 
     // Determine final filename from Content-Type if available
@@ -505,10 +525,7 @@ export class Instaloader {
   /**
    * Save metadata JSON for a structure.
    */
-  async saveMetadataJson(
-    filename: string,
-    structure: Post | StoryItem | Profile
-  ): Promise<void> {
+  async saveMetadataJson(filename: string, structure: Post | StoryItem | Profile): Promise<void> {
     const jsonFilename = this.compressJson ? `${filename}.json.xz` : `${filename}.json`;
 
     const dir = path.dirname(jsonFilename);
@@ -597,11 +614,21 @@ export class Instaloader {
 
           if (node.is_video) {
             if (this.downloadVideos && node.video_url) {
-              const dl = await this.downloadPic(filename, node.video_url, post.date_utc, `${index + 1}`);
+              const dl = await this.downloadPic(
+                filename,
+                node.video_url,
+                post.date_utc,
+                `${index + 1}`
+              );
               downloaded = downloaded || dl;
             }
           } else if (node.display_url) {
-            const dl = await this.downloadPic(filename, node.display_url, post.date_utc, `${index + 1}`);
+            const dl = await this.downloadPic(
+              filename,
+              node.display_url,
+              post.date_utc,
+              `${index + 1}`
+            );
             downloaded = downloaded || dl;
           }
           index++;
@@ -669,9 +696,10 @@ export class Instaloader {
       possiblyPinned = 0,
     } = options;
 
-    const displayedCount = maxCount !== undefined && (totalCount === undefined || maxCount < totalCount)
-      ? maxCount
-      : totalCount;
+    const displayedCount =
+      maxCount !== undefined && (totalCount === undefined || maxCount < totalCount)
+        ? maxCount
+        : totalCount;
 
     let number = 0;
     for await (const post of posts) {
@@ -684,7 +712,10 @@ export class Instaloader {
       // Log progress
       if (displayedCount !== undefined) {
         const width = displayedCount.toString().length;
-        this.context.log(`[${number.toString().padStart(width)}/${displayedCount.toString().padStart(width)}] `, false);
+        this.context.log(
+          `[${number.toString().padStart(width)}/${displayedCount.toString().padStart(width)}] `,
+          false
+        );
       } else {
         this.context.log(`[${number.toString().padStart(3)}] `, false);
       }
@@ -805,7 +836,12 @@ export class Instaloader {
     const url = await profile.getProfilePicUrl();
     if (!url) return;
 
-    const dirname = formatFilename(this.dirnamePattern, profile, profile.username.toLowerCase(), this.sanitizePaths);
+    const dirname = formatFilename(
+      this.dirnamePattern,
+      profile,
+      profile.username.toLowerCase(),
+      this.sanitizePaths
+    );
     const filename = path.join(dirname, `${profile.username.toLowerCase()}_profile_pic`);
 
     await this.downloadPic(filename, url, new Date());
