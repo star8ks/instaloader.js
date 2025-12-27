@@ -15,7 +15,7 @@ import {
   sanitizePath,
   formatFilename,
 } from '../instaloader';
-import { Post, Profile, StoryItem, Hashtag } from '../structures';
+import { Post, Profile, StoryItem, Hashtag, NodeIterator } from '../structures';
 import { LoginRequiredException, InvalidArgumentException } from '../exceptions';
 import type { InstaloaderContext } from '../instaloader-context';
 import type { JsonObject } from '../types';
@@ -1311,7 +1311,7 @@ describe('Instaloader', () => {
           shortcode: 'HTPOST1',
           display_url: 'https://example.com/htpost.jpg',
         });
-      } as () => Generator<Post, void, unknown>;
+      } as unknown as () => NodeIterator<Post>;
 
       const mockResponse = {
         ok: true,
@@ -1335,7 +1335,7 @@ describe('Instaloader', () => {
         yield new Post(context, { ...samplePostNode, shortcode: 'P1' });
         yield new Post(context, { ...samplePostNode, shortcode: 'P2' });
         yield new Post(context, { ...samplePostNode, shortcode: 'P3' });
-      } as () => Generator<Post, void, unknown>;
+      } as unknown as () => NodeIterator<Post>;
 
       const mockResponse = {
         ok: true,
@@ -1359,7 +1359,7 @@ describe('Instaloader', () => {
       hashtag.getPostsResumable = function* () {
         yield new Post(context, { ...samplePostNode, shortcode: 'SKIP' });
         yield new Post(context, { ...samplePostNode, shortcode: 'KEEP' });
-      } as () => Generator<Post, void, unknown>;
+      } as unknown as () => NodeIterator<Post>;
 
       const mockResponse = {
         ok: true,

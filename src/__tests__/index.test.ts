@@ -56,7 +56,7 @@ describe('index exports', () => {
       expect(instaloader.defaultIphoneHeaders).toBeDefined();
       // defaultIphoneHeaders is a function that returns headers object
       expect(typeof instaloader.defaultIphoneHeaders).toBe('function');
-      const headers = instaloader.defaultIphoneHeaders('testapp');
+      const headers = instaloader.defaultIphoneHeaders();
       expect(typeof headers).toBe('object');
     });
   });

@@ -166,9 +166,9 @@ describe('Hashtag', () => {
 
     it('should fallback to media_count when edge_hashtag_to_media is not available', async () => {
       const context = createMockContext();
+      const { edge_hashtag_to_media: _unused1, ...rest } = sampleHashtagNode;
       const hashtagWithMediaCount = {
-        ...sampleHashtagNode,
-        edge_hashtag_to_media: undefined,
+        ...rest,
         media_count: 500000,
       };
       const hashtag = new Hashtag(context, hashtagWithMediaCount);
@@ -192,9 +192,9 @@ describe('Hashtag', () => {
 
     it('should fallback to following field when is_following is not available', async () => {
       const context = createMockContext();
+      const { is_following: _unused2, ...rest } = sampleHashtagNode;
       const hashtagWithFollowing = {
-        ...sampleHashtagNode,
-        is_following: undefined,
+        ...rest,
         following: true,
       };
       const hashtag = new Hashtag(context, hashtagWithFollowing);
@@ -219,9 +219,9 @@ describe('Hashtag', () => {
     it('should handle errors gracefully and return nothing', async () => {
       const context = createMockContext();
       // Create hashtag without edge_hashtag_to_top_posts data to trigger error
+      const { edge_hashtag_to_top_posts: _unused3, ...rest } = sampleHashtagNode;
       const hashtagWithoutTopPosts = {
-        ...sampleHashtagNode,
-        edge_hashtag_to_top_posts: undefined,
+        ...rest,
       };
       const hashtag = new Hashtag(context, hashtagWithoutTopPosts);
       const posts: Post[] = [];
@@ -340,11 +340,7 @@ describe('Hashtag', () => {
         get_iphone_json: mockGetIphoneJson,
       });
       // Create hashtag without description
-      const hashtagWithoutDescription = {
-        ...sampleHashtagNode,
-        description: undefined,
-      };
-      delete (hashtagWithoutDescription as Record<string, unknown>)['description'];
+      const { description: _unused4, ...hashtagWithoutDescription } = sampleHashtagNode;
       const hashtag = new Hashtag(context, hashtagWithoutDescription);
 
       // First call will throw because description is not in node
@@ -473,10 +469,8 @@ describe('Hashtag', () => {
         getJson: mockGetJson,
       });
       // Missing edge_hashtag_to_media will cause an error when trying to iterate
-      const hashtag = new Hashtag(context, {
-        ...sampleHashtagNode,
-        edge_hashtag_to_media: undefined,
-      });
+      const { edge_hashtag_to_media: _unused5, ...rest } = sampleHashtagNode;
+      const hashtag = new Hashtag(context, rest);
       const posts = [];
       // Should not throw, just return empty
       for await (const post of hashtag.getPosts()) {
