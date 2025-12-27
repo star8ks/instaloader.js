@@ -1,5 +1,13 @@
 # @vicociv/instaloader
 
+[![npm version](https://img.shields.io/npm/v/@vicociv/instaloader.svg)](https://www.npmjs.com/package/@vicociv/instaloader)
+[![npm downloads](https://img.shields.io/npm/dm/@vicociv/instaloader.svg)](https://www.npmjs.com/package/@vicociv/instaloader)
+[![CI](https://github.com/user/repo/actions/workflows/ci.yml/badge.svg)](https://github.com/user/repo/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/user/repo/branch/main/graph/badge.svg)](https://codecov.io/gh/user/repo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
+
 TypeScript port of [instaloader](https://github.com/instaloader/instaloader) - Download Instagram content (posts, stories, profiles) with metadata.
 
 ## Installation

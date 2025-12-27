@@ -1,0 +1,36 @@
+# Source files
+src/
+tsconfig.json
+vitest.config.ts
+
+# Config files
+.prettierrc
+.prettierignore
+.eslintrc*
+commitlint.config.js
+.changeset/
+
+# Git and CI
+.git/
+.github/
+.gitignore
+.gitmodules
+.husky/
+
+# Development
+test/
+docs/
+coverage/
+*.test.ts
+__tests__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Other
+instaloader/
+CLAUDE.md
+*.md
+!README.md
