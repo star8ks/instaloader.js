@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Hashtag, TopSearchResults, Profile, Post } from '../structures';
-import type { InstaloaderContext } from '../instaloadercontext';
+import type { InstaloaderContext } from '../instaloader-context';
 import type { JsonObject } from '../types';
 
 // Mock InstaloaderContext - use unknown cast for partial mock

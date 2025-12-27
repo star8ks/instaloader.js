@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { RateController, InstaloaderContext } from '../instaloadercontext';
+import { RateController, InstaloaderContext } from '../instaloader-context';
 
 describe('RateController', () => {
   let context: InstaloaderContext;

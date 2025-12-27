@@ -10,11 +10,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { InstaloaderContext } from '../instaloadercontext';
+import { InstaloaderContext } from '../instaloader-context';
 import { Post } from '../structures';
 
-const hasCredentials =
-  process.env['INSTAGRAM_USERNAME'] && process.env['INSTAGRAM_PASSWORD'];
+const hasCredentials = process.env['INSTAGRAM_USERNAME'] && process.env['INSTAGRAM_PASSWORD'];
 
 describe('Integration Tests', () => {
   describe('Instagram API Access (requires login)', () => {

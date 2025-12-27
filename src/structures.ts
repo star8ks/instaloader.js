@@ -12,14 +12,14 @@ import {
   ProfileNotExistsException,
   QueryReturnedNotFoundException,
 } from './exceptions';
-import type { InstaloaderContext } from './instaloadercontext';
+import type { InstaloaderContext } from './instaloader-context';
 import type { JsonObject, JsonValue } from './types';
-import { NodeIterator } from './nodeiterator';
+import { NodeIterator } from './node-iterator';
 
 // Re-export InstaloaderContext type for use by consumers who import from structures
-export type { InstaloaderContext } from './instaloadercontext';
+export type { InstaloaderContext } from './instaloader-context';
 // Re-export NodeIterator for consumers
-export { NodeIterator } from './nodeiterator';
+export { NodeIterator } from './node-iterator';
 
 // =============================================================================
 // Regex patterns for parsing captions
@@ -105,12 +105,9 @@ function optionalNormalize(str: string | null | undefined): string | null {
  */
 export function shortcodeToMediaid(code: string): bigint {
   if (code.length > 11) {
-    throw new InvalidArgumentException(
-      `Wrong shortcode "${code}", unable to convert to mediaid.`
-    );
+    throw new InvalidArgumentException(`Wrong shortcode "${code}", unable to convert to mediaid.`);
   }
-  const alphabet =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   let mediaid = BigInt(0);
   for (const char of code) {
     mediaid = mediaid * BigInt(64) + BigInt(alphabet.indexOf(char));
@@ -122,8 +119,7 @@ export function shortcodeToMediaid(code: string): bigint {
  * Convert a mediaid to a shortcode.
  */
 export function mediaidToShortcode(mediaid: bigint): string {
-  const alphabet =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   let shortcode = '';
   let id = mediaid;
   while (id > 0) {
@@ -357,10 +353,7 @@ export class PostComment {
   get owner(): Profile {
     if ('iphone_struct' in this._node) {
       const iphoneStruct = this._node['iphone_struct'] as JsonObject;
-      return Profile.fromIphoneStruct(
-        this._context,
-        iphoneStruct['user'] as JsonObject
-      );
+      return Profile.fromIphoneStruct(this._context, iphoneStruct['user'] as JsonObject);
     }
     return new Profile(this._context, this._node['owner'] as JsonObject);
   }
@@ -407,11 +400,7 @@ export class Post {
    * @param node Node structure, as returned by Instagram.
    * @param owner_profile The Profile of the owner, if already known at creation.
    */
-  constructor(
-    context: InstaloaderContext,
-    node: JsonObject,
-    owner_profile: Profile | null = null
-  ) {
+  constructor(context: InstaloaderContext, node: JsonObject, owner_profile: Profile | null = null) {
     if (!('shortcode' in node) && !('code' in node)) {
       throw new Error("Node must contain 'shortcode' or 'code'");
     }
@@ -426,10 +415,7 @@ export class Post {
   /**
    * Create a post object from a given shortcode.
    */
-  static async fromShortcode(
-    context: InstaloaderContext,
-    shortcode: string
-  ): Promise<Post> {
+  static async fromShortcode(context: InstaloaderContext, shortcode: string): Promise<Post> {
     const post = new Post(context, { shortcode });
     post._node = await post._getFullMetadata();
     return post;
@@ -438,20 +424,14 @@ export class Post {
   /**
    * Create a post object from a given mediaid.
    */
-  static async fromMediaid(
-    context: InstaloaderContext,
-    mediaid: bigint
-  ): Promise<Post> {
+  static async fromMediaid(context: InstaloaderContext, mediaid: bigint): Promise<Post> {
     return Post.fromShortcode(context, mediaidToShortcode(mediaid));
   }
 
   /**
    * Create a post from a given iphone_struct.
    */
-  static fromIphoneStruct(
-    context: InstaloaderContext,
-    media: JsonObject
-  ): Post {
+  static fromIphoneStruct(context: InstaloaderContext, media: JsonObject): Post {
     const mediaTypes: Record<number, string> = {
       1: 'GraphImage',
       2: 'GraphVideo',
@@ -468,7 +448,7 @@ export class Post {
       __typename: typename,
       is_video: typename === 'GraphVideo',
       date: media['taken_at'] as number,
-      caption: caption?.['text'] as string | null ?? null,
+      caption: (caption?.['text'] as string | null) ?? null,
       title: (media['title'] as string) ?? null,
       viewer_has_liked: media['has_liked'] as boolean,
       edge_media_preview_like: { count: media['like_count'] as number },
@@ -507,9 +487,9 @@ export class Post {
       const carouselMedia = media['carousel_media'] as JsonValue[] | undefined;
       if (carouselMedia) {
         fakeNode['edge_sidecar_to_children'] = {
-          edges: carouselMedia.map((node) =>
-            ({ node: Post._convertIphoneCarousel(node as JsonObject, mediaTypes) })
-          ),
+          edges: carouselMedia.map((node) => ({
+            node: Post._convertIphoneCarousel(node as JsonObject, mediaTypes),
+          })),
         };
       }
     } catch {
@@ -517,9 +497,7 @@ export class Post {
     }
 
     const ownerProfile =
-      'user' in media
-        ? Profile.fromIphoneStruct(context, media['user'] as JsonObject)
-        : null;
+      'user' in media ? Profile.fromIphoneStruct(context, media['user'] as JsonObject) : null;
 
     return new Post(context, fakeNode, ownerProfile);
   }
@@ -581,10 +559,9 @@ export class Post {
 
   private async _obtainMetadata(): Promise<void> {
     if (!this._full_metadata_dict) {
-      const result = await this._context.doc_id_graphql_query(
-        '8845758582119845',
-        { shortcode: this.shortcode }
-      );
+      const result = await this._context.doc_id_graphql_query('8845758582119845', {
+        shortcode: this.shortcode,
+      });
       const data = result['data'] as JsonObject;
       const picJson = data['xdt_shortcode_media'] as JsonObject | null;
 
@@ -600,9 +577,7 @@ export class Post {
 
       const typename = picJson['__typename'] as string;
       if (!(typename in xdtTypes)) {
-        throw new BadResponseException(
-          `Unknown __typename in metadata: ${typename}.`
-        );
+        throw new BadResponseException(`Unknown __typename in metadata: ${typename}.`);
       }
       picJson['__typename'] = xdtTypes[typename]!;
 
@@ -630,15 +605,10 @@ export class Post {
       throw new IPhoneSupportDisabledException('iPhone support is disabled.');
     }
     if (!this._context.is_logged_in) {
-      throw new LoginRequiredException(
-        'Login required to access iPhone media info endpoint.'
-      );
+      throw new LoginRequiredException('Login required to access iPhone media info endpoint.');
     }
     if (!this._iphone_struct_) {
-      const data = await this._context.get_iphone_json(
-        `api/v1/media/${this.mediaid}/info/`,
-        {}
-      );
+      const data = await this._context.get_iphone_json(`api/v1/media/${this.mediaid}/info/`, {});
       const items = data['items'] as JsonValue[];
       this._iphone_struct_ = items[0] as JsonObject;
     }
@@ -664,9 +634,7 @@ export class Post {
       return d;
     } catch {
       // Will need async version for full metadata lookup
-      throw new Error(
-        `Field ${keys.join('.')} not found. Use async method for full metadata.`
-      );
+      throw new Error(`Field ${keys.join('.')} not found. Use async method for full metadata.`);
     }
   }
 
@@ -747,18 +715,12 @@ export class Post {
   }
 
   private _getTimestampDateCreated(): number {
-    return (
-      (this._node['date'] as number) ??
-      (this._node['taken_at_timestamp'] as number)
-    );
+    return (this._node['date'] as number) ?? (this._node['taken_at_timestamp'] as number);
   }
 
   /** URL of the picture / video thumbnail of the post */
   get url(): string {
-    return (
-      (this._node['display_url'] as string) ??
-      (this._node['display_src'] as string)
-    );
+    return (this._node['display_url'] as string) ?? (this._node['display_src'] as string);
   }
 
   /** Type of post: GraphImage, GraphVideo or GraphSidecar */
@@ -770,10 +732,7 @@ export class Post {
   get mediacount(): number {
     if (this.typename === 'GraphSidecar') {
       try {
-        const edges = this._field(
-          'edge_sidecar_to_children',
-          'edges'
-        ) as JsonValue[];
+        const edges = this._field('edge_sidecar_to_children', 'edges') as JsonValue[];
         return edges.length;
       } catch {
         return 1;
@@ -832,10 +791,7 @@ export class Post {
   /** List of all lowercased users that are tagged in the Post. */
   get tagged_users(): string[] {
     try {
-      const edges = this._field(
-        'edge_media_to_tagged_user',
-        'edges'
-      ) as JsonValue[];
+      const edges = this._field('edge_media_to_tagged_user', 'edges') as JsonValue[];
       return edges.map((edge) => {
         const e = edge as JsonObject;
         const node = e['node'] as JsonObject;
@@ -933,10 +889,7 @@ export class Post {
   /** Whether Post is a sponsored post. */
   get is_sponsored(): boolean {
     try {
-      const sponsorEdges = this._field(
-        'edge_media_to_sponsor_user',
-        'edges'
-      ) as JsonValue[];
+      const sponsorEdges = this._field('edge_media_to_sponsor_user', 'edges') as JsonValue[];
       return sponsorEdges.length > 0;
     } catch {
       return false;
@@ -947,10 +900,7 @@ export class Post {
   getIsVideos(): boolean[] {
     if (this.typename === 'GraphSidecar') {
       try {
-        const edges = this._field(
-          'edge_sidecar_to_children',
-          'edges'
-        ) as JsonValue[];
+        const edges = this._field('edge_sidecar_to_children', 'edges') as JsonValue[];
         return edges.map((edge) => {
           const e = edge as JsonObject;
           const node = e['node'] as JsonObject;
@@ -970,10 +920,7 @@ export class Post {
     }
 
     try {
-      const edges = this._field(
-        'edge_sidecar_to_children',
-        'edges'
-      ) as JsonValue[];
+      const edges = this._field('edge_sidecar_to_children', 'edges') as JsonValue[];
       const actualEnd = end < 0 ? edges.length - 1 : end;
       const actualStart = start < 0 ? edges.length - 1 : start;
 
@@ -1049,10 +996,7 @@ export class Profile {
    * Create a Profile instance from a given username.
    * Raises exception if it does not exist.
    */
-  static async fromUsername(
-    context: InstaloaderContext,
-    username: string
-  ): Promise<Profile> {
+  static async fromUsername(context: InstaloaderContext, username: string): Promise<Profile> {
     const profile = new Profile(context, { username: username.toLowerCase() });
     await profile._obtainMetadata();
     return profile;
@@ -1062,10 +1006,7 @@ export class Profile {
    * Create a Profile instance from a given userid.
    * If possible, use fromUsername or constructor instead.
    */
-  static async fromId(
-    context: InstaloaderContext,
-    profileId: number
-  ): Promise<Profile> {
+  static async fromId(context: InstaloaderContext, profileId: number): Promise<Profile> {
     const cached = context.profile_id_cache.get(profileId);
     if (cached) {
       return cached;
@@ -1097,10 +1038,7 @@ export class Profile {
   /**
    * Create a profile from a given iphone_struct.
    */
-  static fromIphoneStruct(
-    context: InstaloaderContext,
-    media: JsonObject
-  ): Profile {
+  static fromIphoneStruct(context: InstaloaderContext, media: JsonObject): Profile {
     return new Profile(context, {
       id: media['pk'] as string,
       username: media['username'] as string,
@@ -1133,18 +1071,13 @@ export class Profile {
         const data = metadata['data'] as JsonObject;
         const user = data['user'] as JsonObject | null;
         if (user === null) {
-          throw new ProfileNotExistsException(
-            `Profile ${this.username} does not exist.`
-          );
+          throw new ProfileNotExistsException(`Profile ${this.username} does not exist.`);
         }
         this._node = user;
         this._has_full_metadata = true;
       }
     } catch (err) {
-      if (
-        err instanceof QueryReturnedNotFoundException ||
-        err instanceof TypeError
-      ) {
+      if (err instanceof QueryReturnedNotFoundException || err instanceof TypeError) {
         // Try to find similar profiles
         const topSearch = new TopSearchResults(this._context, this.username);
         const profiles: string[] = [];
@@ -1164,9 +1097,7 @@ export class Profile {
             `Profile ${this.username} does not exist.\nThe most similar profile${plural}: ${profiles.slice(0, 5).join(', ')}.`
           );
         }
-        throw new ProfileNotExistsException(
-          `Profile ${this.username} does not exist.`
-        );
+        throw new ProfileNotExistsException(`Profile ${this.username} does not exist.`);
       }
       throw err;
     }
@@ -1332,10 +1263,7 @@ export class Profile {
     if (this._context.iphoneSupport && this._context.is_logged_in) {
       try {
         if (!this._iphone_struct_) {
-          const data = await this._context.get_iphone_json(
-            `api/v1/users/${this.userid}/info/`,
-            {}
-          );
+          const data = await this._context.get_iphone_json(`api/v1/users/${this.userid}/info/`, {});
           this._iphone_struct_ = data['user'] as JsonObject;
         }
         const hdInfo = this._iphone_struct_['hd_profile_pic_url_info'] as JsonObject;
@@ -1370,19 +1298,28 @@ export class Profile {
     const loggedIn = this._context.is_logged_in;
 
     // Get first data from metadata if not logged in
-    let firstData: { edges: Array<{ node: JsonObject }>; page_info: { has_next_page: boolean; end_cursor: string | null }; count?: number } | undefined;
+    let firstData:
+      | {
+          edges: Array<{ node: JsonObject }>;
+          page_info: { has_next_page: boolean; end_cursor: string | null };
+          count?: number;
+        }
+      | undefined;
     if (!loggedIn) {
       try {
         const edgeData = this._metadata('edge_owner_to_timeline_media') as JsonObject;
         const countValue = edgeData['count'];
         const baseData = {
-          edges: ((edgeData['edges'] as Array<JsonObject>) || []).map(e => ({ node: (e['node'] || e) as JsonObject })),
-          page_info: (edgeData['page_info'] || { has_next_page: false, end_cursor: null }) as { has_next_page: boolean; end_cursor: string | null },
+          edges: ((edgeData['edges'] as Array<JsonObject>) || []).map((e) => ({
+            node: (e['node'] || e) as JsonObject,
+          })),
+          page_info: (edgeData['page_info'] || { has_next_page: false, end_cursor: null }) as {
+            has_next_page: boolean;
+            end_cursor: string | null;
+          },
         };
         // Only add count if it's actually a number (not undefined)
-        firstData = typeof countValue === 'number'
-          ? { ...baseData, count: countValue }
-          : baseData;
+        firstData = typeof countValue === 'number' ? { ...baseData, count: countValue } : baseData;
       } catch {
         // No first data available
       }
@@ -1392,8 +1329,14 @@ export class Profile {
       context: this._context,
       queryHash: null as string | null,
       edgeExtractor: loggedIn
-        ? (d: JsonObject) => (d['data'] as JsonObject)['xdt_api__v1__feed__user_timeline_graphql_connection'] as JsonObject
-        : (d: JsonObject) => ((d['data'] as JsonObject)['user'] as JsonObject)['edge_owner_to_timeline_media'] as JsonObject,
+        ? (d: JsonObject) =>
+            (d['data'] as JsonObject)[
+              'xdt_api__v1__feed__user_timeline_graphql_connection'
+            ] as JsonObject
+        : (d: JsonObject) =>
+            ((d['data'] as JsonObject)['user'] as JsonObject)[
+              'edge_owner_to_timeline_media'
+            ] as JsonObject,
       nodeWrapper: loggedIn
         ? (n: JsonObject) => Post.fromIphoneStruct(this._context, n)
         : (n: JsonObject) => new Post(this._context, n, this),
@@ -1452,7 +1395,9 @@ export class Profile {
       context: this._context,
       queryHash: 'e31a871f7301132ceaab56507a66bbb7',
       edgeExtractor: (d: JsonObject) =>
-        ((d['data'] as JsonObject)['user'] as JsonObject)['edge_user_to_photos_of_you'] as JsonObject,
+        ((d['data'] as JsonObject)['user'] as JsonObject)[
+          'edge_user_to_photos_of_you'
+        ] as JsonObject,
       nodeWrapper: (n: JsonObject) => {
         const ownerId = Number((n['owner'] as JsonObject)['id']);
         const ownerProfile = ownerId === this.userid ? this : undefined;
@@ -1495,11 +1440,7 @@ export class StoryItem {
   private _owner_profile: Profile | null;
   private _iphone_struct_: JsonObject | null = null;
 
-  constructor(
-    context: InstaloaderContext,
-    node: JsonObject,
-    owner_profile: Profile | null = null
-  ) {
+  constructor(context: InstaloaderContext, node: JsonObject, owner_profile: Profile | null = null) {
     this._context = context;
     this._node = node;
     this._owner_profile = owner_profile;
@@ -1511,17 +1452,11 @@ export class StoryItem {
   /**
    * Create a StoryItem object from a given mediaid.
    */
-  static async fromMediaid(
-    context: InstaloaderContext,
-    mediaid: bigint
-  ): Promise<StoryItem> {
-    const picJson = await context.graphql_query(
-      '2b0673e0dc4580674a88d426fe00ea90',
-      { shortcode: mediaidToShortcode(mediaid) }
-    );
-    const shortcodeMedia = (picJson['data'] as JsonObject)[
-      'shortcode_media'
-    ] as JsonObject | null;
+  static async fromMediaid(context: InstaloaderContext, mediaid: bigint): Promise<StoryItem> {
+    const picJson = await context.graphql_query('2b0673e0dc4580674a88d426fe00ea90', {
+      shortcode: mediaidToShortcode(mediaid),
+    });
+    const shortcodeMedia = (picJson['data'] as JsonObject)['shortcode_media'] as JsonObject | null;
     if (shortcodeMedia === null) {
       throw new BadResponseException('Fetching StoryItem metadata failed.');
     }
@@ -1550,10 +1485,7 @@ export class StoryItem {
   async getOwnerProfile(): Promise<Profile> {
     if (!this._owner_profile) {
       const owner = this._node['owner'] as JsonObject;
-      this._owner_profile = await Profile.fromId(
-        this._context,
-        Number(owner['id'])
-      );
+      this._owner_profile = await Profile.fromId(this._context, Number(owner['id']));
     }
     return this._owner_profile;
   }
@@ -1755,10 +1687,7 @@ export class Story {
   /** Profile instance of the story owner. */
   get owner_profile(): Profile {
     if (!this._owner_profile) {
-      this._owner_profile = new Profile(
-        this._context,
-        this._node['user'] as JsonObject
-      );
+      this._owner_profile = new Profile(this._context, this._node['user'] as JsonObject);
     }
     return this._owner_profile;
   }
@@ -1774,11 +1703,7 @@ export class Story {
   }
 
   protected async _fetchIphoneStruct(): Promise<void> {
-    if (
-      this._context.iphoneSupport &&
-      this._context.is_logged_in &&
-      !this._iphone_struct_
-    ) {
+    if (this._context.iphoneSupport && this._context.is_logged_in && !this._iphone_struct_) {
       const data = await this._context.get_iphone_json(
         `api/v1/feed/reels_media/?reel_ids=${this.owner_id}`,
         {}
@@ -1824,11 +1749,7 @@ export class Story {
 export class Highlight extends Story {
   private _items: JsonValue[] | null = null;
 
-  constructor(
-    context: InstaloaderContext,
-    node: JsonObject,
-    owner: Profile | null = null
-  ) {
+  constructor(context: InstaloaderContext, node: JsonObject, owner: Profile | null = null) {
     super(context, node);
     this._owner_profile = owner;
   }
@@ -1845,10 +1766,7 @@ export class Highlight extends Story {
   /** Profile instance of the highlights' owner. */
   override get owner_profile(): Profile {
     if (!this._owner_profile) {
-      this._owner_profile = new Profile(
-        this._context,
-        this._node['owner'] as JsonObject
-      );
+      this._owner_profile = new Profile(this._context, this._node['owner'] as JsonObject);
     }
     return this._owner_profile;
   }
@@ -1872,16 +1790,13 @@ export class Highlight extends Story {
 
   private async _fetchItems(): Promise<void> {
     if (!this._items) {
-      const data = await this._context.graphql_query(
-        '45246d3fe16ccc6577e0bd297a5db1ab',
-        {
-          reel_ids: [],
-          tag_names: [],
-          location_ids: [],
-          highlight_reel_ids: [String(this.unique_id)],
-          precomposed_overlay: false,
-        }
-      );
+      const data = await this._context.graphql_query('45246d3fe16ccc6577e0bd297a5db1ab', {
+        reel_ids: [],
+        tag_names: [],
+        location_ids: [],
+        highlight_reel_ids: [String(this.unique_id)],
+        precomposed_overlay: false,
+      });
       const dataObj = data['data'] as JsonObject;
       const reelsMedia = dataObj['reels_media'] as JsonValue[];
       const firstReel = reelsMedia[0] as JsonObject;
@@ -1890,11 +1805,7 @@ export class Highlight extends Story {
   }
 
   protected override async _fetchIphoneStruct(): Promise<void> {
-    if (
-      this._context.iphoneSupport &&
-      this._context.is_logged_in &&
-      !this._iphone_struct_
-    ) {
+    if (this._context.iphoneSupport && this._context.is_logged_in && !this._iphone_struct_) {
       const data = await this._context.get_iphone_json(
         `api/v1/feed/reels_media/?reel_ids=highlight:${this.unique_id}`,
         {}
@@ -1972,10 +1883,7 @@ export class Hashtag {
   /**
    * Create a Hashtag instance from a given hashtag name, without preceding '#'.
    */
-  static async fromName(
-    context: InstaloaderContext,
-    name: string
-  ): Promise<Hashtag> {
+  static async fromName(context: InstaloaderContext, name: string): Promise<Hashtag> {
     const hashtag = new Hashtag(context, { name: name.toLowerCase() });
     await hashtag._obtainMetadata();
     return hashtag;
@@ -1987,10 +1895,10 @@ export class Hashtag {
   }
 
   private async _query(params: JsonObject): Promise<JsonObject> {
-    const jsonResponse = await this._context.get_iphone_json(
-      'api/v1/tags/web_info/',
-      { ...params, tag_name: this.name }
-    );
+    const jsonResponse = await this._context.get_iphone_json('api/v1/tags/web_info/', {
+      ...params,
+      tag_name: this.name,
+    });
     if ('graphql' in jsonResponse) {
       return (jsonResponse['graphql'] as JsonObject)['hashtag'] as JsonObject;
     }
@@ -2080,10 +1988,7 @@ export class Hashtag {
   /** Yields the top posts of the hashtag. */
   async *getTopPosts(): AsyncGenerator<Post> {
     try {
-      const edges = (await this.getMetadata(
-        'edge_hashtag_to_top_posts',
-        'edges'
-      )) as JsonValue[];
+      const edges = (await this.getMetadata('edge_hashtag_to_top_posts', 'edges')) as JsonValue[];
       for (const edge of edges) {
         const e = edge as JsonObject;
         yield new Post(this._context, e['node'] as JsonObject);
@@ -2295,10 +2200,7 @@ export function loadStructure(
   context: InstaloaderContext,
   jsonStructure: JsonObject
 ): JsonExportable {
-  if (
-    'node' in jsonStructure &&
-    'instaloader' in jsonStructure
-  ) {
+  if ('node' in jsonStructure && 'instaloader' in jsonStructure) {
     const instaloader = jsonStructure['instaloader'] as JsonObject;
     if ('node_type' in instaloader) {
       const nodeType = instaloader['node_type'] as string;
@@ -2323,7 +2225,5 @@ export function loadStructure(
     return new Post(context, jsonStructure);
   }
 
-  throw new InvalidArgumentException(
-    'Passed json structure is not an Instaloader JSON'
-  );
+  throw new InvalidArgumentException('Passed json structure is not an Instaloader JSON');
 }

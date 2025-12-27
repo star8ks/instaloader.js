@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { InstaloaderContext, defaultUserAgent, defaultIphoneHeaders } from '../instaloadercontext';
+import { InstaloaderContext, defaultUserAgent, defaultIphoneHeaders } from '../instaloader-context';
 
 // Mock fetch globally
 const mockFetch = vi.fn();

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-import { InstaloaderContext, RateController } from './instaloadercontext';
+import { InstaloaderContext, RateController } from './instaloader-context';
 import { Post, Profile, StoryItem, Hashtag, getJsonStructure } from './structures';
 import {
   LoginRequiredException,

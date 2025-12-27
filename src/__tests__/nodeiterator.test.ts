@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NodeIterator, FrozenNodeIterator, resumableIteration } from '../nodeiterator';
-import type { InstaloaderContext } from '../instaloadercontext';
+import { NodeIterator, FrozenNodeIterator, resumableIteration } from '../node-iterator';
+import type { InstaloaderContext } from '../instaloader-context';
 import type { JsonObject } from '../types';
 
 // Create a mock context

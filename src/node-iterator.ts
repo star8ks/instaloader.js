@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'crypto';
-import type { InstaloaderContext } from './instaloadercontext';
+import type { InstaloaderContext } from './instaloader-context';
 import type { JsonObject } from './types';
 import { InvalidArgumentException } from './exceptions';
 
@@ -416,7 +416,10 @@ export class NodeIterator<T> implements AsyncIterable<T> {
 export interface ResumableIterationOptions<T> {
   context: InstaloaderContext;
   iterator: AsyncIterable<T> | Iterable<T>;
-  load: (context: InstaloaderContext, path: string) => FrozenNodeIterator | Promise<FrozenNodeIterator>;
+  load: (
+    context: InstaloaderContext,
+    path: string
+  ) => FrozenNodeIterator | Promise<FrozenNodeIterator>;
   save: (frozen: FrozenNodeIterator, path: string) => void | Promise<void>;
   formatPath: (magic: string) => string;
   checkBbd?: boolean;
@@ -466,7 +469,15 @@ export async function resumableIteration<T>(
 ): Promise<ResumableIterationResult> {
   // Note: save is not used directly here - caller is responsible for saving on interrupt
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { context, iterator, load, save: _save, formatPath, checkBbd = true, enabled = true } = options;
+  const {
+    context,
+    iterator,
+    load,
+    save: _save,
+    formatPath,
+    checkBbd = true,
+    enabled = true,
+  } = options;
 
   // If disabled or not a NodeIterator, just return defaults
   if (!enabled || !(iterator instanceof NodeIterator)) {

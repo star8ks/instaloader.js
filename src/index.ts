@@ -63,22 +63,18 @@ export {
   RateController,
   defaultUserAgent,
   defaultIphoneHeaders,
-} from './instaloadercontext';
+} from './instaloader-context';
 
-export type { InstaloaderContextOptions } from './instaloadercontext';
+export type { InstaloaderContextOptions } from './instaloader-context';
 
 // NodeIterator
-export {
-  NodeIterator,
-  FrozenNodeIterator,
-  resumableIteration,
-} from './nodeiterator';
+export { NodeIterator, FrozenNodeIterator, resumableIteration } from './node-iterator';
 
 export type {
   NodeIteratorOptions,
   ResumableIterationOptions,
   ResumableIterationResult,
-} from './nodeiterator';
+} from './node-iterator';
 
 // Structures
 export {

@@ -16,7 +16,7 @@ import {
   Hashtag,
 } from '../structures';
 import { InvalidArgumentException } from '../exceptions';
-import type { InstaloaderContext } from '../instaloadercontext';
+import type { InstaloaderContext } from '../instaloader-context';
 import type { JsonObject } from '../types';
 
 // Mock context for tests

@@ -17,7 +17,7 @@ import {
 } from '../instaloader';
 import { Post, Profile, StoryItem, Hashtag } from '../structures';
 import { LoginRequiredException, InvalidArgumentException } from '../exceptions';
-import type { InstaloaderContext } from '../instaloadercontext';
+import type { InstaloaderContext } from '../instaloader-context';
 import type { JsonObject } from '../types';
 
 // Mock fs module
