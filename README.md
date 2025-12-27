@@ -2,7 +2,7 @@
 
 [![npm downloads](https://img.shields.io/npm/dm/@vicociv/instaloader.svg)](https://www.npmjs.com/package/@vicociv/instaloader)
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/@vicociv/instaloader)](https://bundlephobia.com/package/@vicociv/instaloader)
-[![dependencies](https://img.shields.io/bundlephobia/dependency-count/@vicociv/instaloader)](https://bundlephobia.com/package/@vicociv/instaloader)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://bundlephobia.com/package/@vicociv/instaloader)
 [![tree-shaking](https://img.shields.io/badge/tree--shaking-supported-brightgreen)](https://bundlephobia.com/package/@vicociv/instaloader)
 [![CI](https://github.com/star8ks/instaloader.js/actions/workflows/ci.yml/badge.svg)](https://github.com/star8ks/instaloader.js/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/star8ks/instaloader.js/branch/main/graph/badge.svg)](https://codecov.io/gh/star8ks/instaloader.js)
