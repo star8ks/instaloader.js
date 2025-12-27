@@ -1,6 +1,6 @@
 {
   "name": "@vicociv/instaloader",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript port of instaloader - Download pictures (or videos) along with their captions and other metadata from Instagram.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
