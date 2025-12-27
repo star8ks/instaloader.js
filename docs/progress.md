@@ -30,11 +30,30 @@ Port the Python [instaloader](https://github.com/instaloader/instaloader) librar
 | Unit tests for InstaloaderContext | Done (66 tests) |
 | Unit tests for NodeIterator | Done (21 tests) |
 | Unit tests for Instaloader | Done (36 tests) |
-| Integration tests | Not Started |
+| Integration tests | Done (1 test, works without login) |
+| URL parsing helpers | Done (14 tests) |
 
 ## Current Progress
 
 ### Completed (2024-12-27)
+
+#### Anonymous Access Fix
+Fixed the issue where the TypeScript version couldn't fetch Instagram data without login while Python version could.
+
+**Root cause analysis:**
+1. Python instaloader first tries POST request which gets 403 Forbidden
+2. On retry, Python's `get_json()` doesn't pass `use_post` parameter, so it defaults to GET
+3. GET requests work anonymously while POST requests get blocked
+
+**Changes made:**
+1. Added `getPerRequestHeaders()` function that generates fresh dynamic headers per request:
+   - `x-pigeon-rawclienttime`: Current timestamp
+   - `x-ig-connection-speed`: Random speed (1000-20000kbps)
+   - `x-pigeon-session-id`: Fresh UUID
+2. Modified `getJson()` to refresh dynamic headers on retry with `refreshDynamicHeaders` option
+3. **Key fix**: On retry, `getJson()` now uses GET instead of POST (matching Python behavior)
+
+This allows anonymous access to Instagram GraphQL API without login.
 
 1. **Project Setup**
    - Initialized npm package with TypeScript

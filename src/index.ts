@@ -87,6 +87,11 @@ export {
   mediaidToShortcode,
   extractHashtags,
   extractMentions,
+  // URL parsing helpers
+  parseInstagramUrl,
+  extractShortcode,
+  extractUsername,
+  extractHashtagFromUrl,
   // Classes
   PostComment,
   Post,
@@ -107,6 +112,7 @@ export type {
   PostCommentAnswer,
   PostLocation,
   JsonExportable,
+  ParsedInstagramUrl,
 } from './structures';
 
 // Instaloader main class

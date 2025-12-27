@@ -159,6 +159,122 @@ export function extractMentions(text: string): string[] {
   return matches;
 }
 
+// =============================================================================
+// URL Parsing Helpers
+// =============================================================================
+
+/**
+ * Regex patterns for parsing Instagram URLs
+ */
+const POST_URL_REGEX = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/;
+const PROFILE_URL_REGEX = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)\/?(?:\?.*)?$/;
+const HASHTAG_URL_REGEX = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/explore\/tags\/([^/?]+)/;
+
+/**
+ * Result of parsing an Instagram URL
+ */
+export interface ParsedInstagramUrl {
+  type: 'post' | 'profile' | 'hashtag' | 'unknown';
+  shortcode?: string;
+  username?: string;
+  hashtag?: string;
+}
+
+/**
+ * Parse an Instagram URL to extract the type and identifier.
+ *
+ * @param url - The Instagram URL to parse
+ * @returns Parsed URL information
+ *
+ * @example
+ * parseInstagramUrl('https://www.instagram.com/p/DSsaqgbkhAd/')
+ * // => { type: 'post', shortcode: 'DSsaqgbkhAd' }
+ *
+ * parseInstagramUrl('https://www.instagram.com/instagram/')
+ * // => { type: 'profile', username: 'instagram' }
+ *
+ * parseInstagramUrl('https://www.instagram.com/explore/tags/nature/')
+ * // => { type: 'hashtag', hashtag: 'nature' }
+ */
+export function parseInstagramUrl(url: string): ParsedInstagramUrl {
+  // Try to match post URL (includes /p/, /reel/, /tv/)
+  const postMatch = url.match(POST_URL_REGEX);
+  if (postMatch && postMatch[1]) {
+    return { type: 'post', shortcode: postMatch[1] };
+  }
+
+  // Try to match hashtag URL
+  const hashtagMatch = url.match(HASHTAG_URL_REGEX);
+  if (hashtagMatch && hashtagMatch[1]) {
+    return { type: 'hashtag', hashtag: hashtagMatch[1] };
+  }
+
+  // Try to match profile URL (must be after hashtag to avoid false positives)
+  const profileMatch = url.match(PROFILE_URL_REGEX);
+  if (profileMatch && profileMatch[1]) {
+    // Exclude known non-profile paths
+    const nonProfilePaths = [
+      'explore',
+      'accounts',
+      'directory',
+      'about',
+      'legal',
+      'developer',
+      'stories',
+    ];
+    if (!nonProfilePaths.includes(profileMatch[1].toLowerCase())) {
+      return { type: 'profile', username: profileMatch[1] };
+    }
+  }
+
+  return { type: 'unknown' };
+}
+
+/**
+ * Extract shortcode from a post URL.
+ *
+ * @param url - The Instagram post URL
+ * @returns The shortcode, or null if not found
+ *
+ * @example
+ * extractShortcode('https://www.instagram.com/p/DSsaqgbkhAd/?img_index=1')
+ * // => 'DSsaqgbkhAd'
+ */
+export function extractShortcode(url: string): string | null {
+  const match = url.match(POST_URL_REGEX);
+  return match ? match[1]! : null;
+}
+
+/**
+ * Extract username from a profile URL.
+ *
+ * @param url - The Instagram profile URL
+ * @returns The username, or null if not found
+ *
+ * @example
+ * extractUsername('https://www.instagram.com/instagram/')
+ * // => 'instagram'
+ */
+export function extractUsername(url: string): string | null {
+  const parsed = parseInstagramUrl(url);
+  return parsed.type === 'profile' ? (parsed.username ?? null) : null;
+}
+
+/**
+ * Extract hashtag from a hashtag URL.
+ *
+ * @param url - The Instagram hashtag URL
+ * @returns The hashtag (without #), or null if not found
+ *
+ * @example
+ * extractHashtagFromUrl('https://www.instagram.com/explore/tags/nature/')
+ * // => 'nature'
+ */
+export function extractHashtagFromUrl(url: string): string | null {
+  const match = url.match(HASHTAG_URL_REGEX);
+  return match ? match[1]! : null;
+}
+
 /**
  * Ellipsify a caption for display purposes.
  */

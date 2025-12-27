@@ -454,7 +454,7 @@ describe('InstaloaderContext.doc_id_graphql_query', () => {
     context = new InstaloaderContext({ sleep: false, quiet: true });
   });
 
-  it('should make POST request with doc_id', async () => {
+  it('should make GET request with doc_id for anonymous users', async () => {
     mockFetch.mockResolvedValueOnce({
       status: 200,
       headers: new Headers(),
@@ -465,7 +465,7 @@ describe('InstaloaderContext.doc_id_graphql_query', () => {
     expect(result['status']).toBe('ok');
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('graphql/query'),
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({ method: 'GET' })
     );
   });
 });

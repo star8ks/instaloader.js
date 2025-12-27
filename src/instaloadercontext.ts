@@ -37,6 +37,8 @@ export function defaultUserAgent(): string {
 
 /**
  * Returns default iPhone headers for API requests.
+ * Note: x-pigeon-session-id and x-ig-connection-speed are randomized per call
+ * to make each request appear as a different client (important for bypassing rate limits).
  */
 export function defaultIphoneHeaders(): HttpHeaders {
   const timezoneOffset = new Date().getTimezoneOffset() * -60;
@@ -68,6 +70,18 @@ export function defaultIphoneHeaders(): HttpHeaders {
     'x-pigeon-session-id': uuidv4(),
     'x-tigon-is-retry': 'False',
     'x-whatsapp': '0',
+  };
+}
+
+/**
+ * Generate per-request dynamic headers for iPhone API.
+ * These values change with each request to appear as different clients.
+ */
+export function getPerRequestHeaders(): HttpHeaders {
+  return {
+    'x-pigeon-rawclienttime': (Date.now() / 1000).toFixed(6),
+    'x-ig-connection-speed': `${Math.floor(Math.random() * 19000) + 1000}kbps`,
+    'x-pigeon-session-id': uuidv4(),
   };
 }
 
@@ -615,6 +629,8 @@ export class InstaloaderContext {
       usePost?: boolean;
       attempt?: number;
       headers?: HttpHeaders;
+      /** If true, refresh dynamic headers (timestamp, session ID, speed) on each attempt */
+      refreshDynamicHeaders?: boolean;
     } = {}
   ): Promise<JsonObject> {
     const {
@@ -622,6 +638,7 @@ export class InstaloaderContext {
       usePost = false,
       attempt = 1,
       headers: extraHeaders,
+      refreshDynamicHeaders = false,
     } = options;
 
     const isGraphqlQuery = 'query_hash' in params && path.includes('graphql/query');
@@ -647,10 +664,21 @@ export class InstaloaderContext {
       }
 
       const url = new URL(`https://${host}/${path}`);
+
+      // Build headers, optionally refreshing dynamic headers for retries
+      let headersToUse = extraHeaders;
+      if (refreshDynamicHeaders && extraHeaders) {
+        // Merge fresh dynamic headers with existing headers
+        headersToUse = {
+          ...extraHeaders,
+          ...getPerRequestHeaders(),
+        };
+      }
+
       const headers: HttpHeaders = {
         ...this._defaultHttpHeader(true),
         Cookie: this._getCookieHeader(url.toString()),
-        ...extraHeaders,
+        ...headersToUse,
       };
 
       if (this._csrfToken) {
@@ -774,6 +802,7 @@ export class InstaloaderContext {
     } catch (err) {
       const errorString = `JSON Query to ${path}: ${err}`;
 
+      // Give up after maxConnectionAttempts attempts (including the first one)
       if (attempt >= this.maxConnectionAttempts) {
         if (err instanceof QueryReturnedNotFoundException) {
           throw new QueryReturnedNotFoundException(errorString);
@@ -798,10 +827,14 @@ export class InstaloaderContext {
         }
       }
 
+      // Retry with GET method (matching Python instaloader behavior)
+      // Python's get_json() doesn't pass use_post on retry, defaulting to GET
+      // This is intentional: POST fails with 403 but GET succeeds for anonymous requests
       return this.getJson(path, params, {
         host,
-        usePost,
+        // usePost is intentionally omitted to default to GET on retry
         attempt: attempt + 1,
+        refreshDynamicHeaders: true, // Refresh headers on retry to appear as different client
         ...(extraHeaders !== undefined && { headers: extraHeaders }),
       });
     }
@@ -845,15 +878,23 @@ export class InstaloaderContext {
   }
 
   /**
-   * Do a doc_id-based GraphQL Query using POST.
+   * Do a doc_id-based GraphQL Query.
+   *
+   * Uses GET for anonymous requests (works without login) and POST for authenticated
+   * requests. This is the correct behavior - Instagram's API accepts GET for public
+   * data but requires POST with session for authenticated operations.
    */
   async doc_id_graphql_query(
     docId: string,
     variables: JsonObject,
     referer?: string
   ): Promise<JsonObject> {
+    // Generate per-request dynamic headers
+    const perRequestHeaders = getPerRequestHeaders();
+
     const headers: HttpHeaders = {
       ...this._defaultHttpHeader(true),
+      ...perRequestHeaders,
       authority: 'www.instagram.com',
       scheme: 'https',
       accept: '*/*',
@@ -868,10 +909,14 @@ export class InstaloaderContext {
 
     const variablesJson = JSON.stringify(variables);
 
+    // Use POST only when logged in, GET for anonymous requests
+    // Instagram's API accepts GET for public data without authentication
+    const usePost = this.is_logged_in;
+
     const respJson = await this.getJson(
       'graphql/query',
       { variables: variablesJson, doc_id: docId, server_timestamps: 'true' },
-      { usePost: true, headers }
+      { usePost, headers }
     );
 
     if (!('status' in respJson)) {
@@ -883,12 +928,16 @@ export class InstaloaderContext {
 
   /**
    * JSON request to i.instagram.com.
+   * Each request uses fresh dynamic headers to appear as different clients.
    */
   async get_iphone_json(path: string, params: JsonObject): Promise<JsonObject> {
+    // Generate per-request dynamic headers
+    const perRequestHeaders = getPerRequestHeaders();
+
     const headers: HttpHeaders = {
       ...this._iphoneHeaders,
+      ...perRequestHeaders,
       'ig-intended-user-id': this._userId || '',
-      'x-pigeon-rawclienttime': (Date.now() / 1000).toFixed(6),
     };
 
     // Map cookies to headers
