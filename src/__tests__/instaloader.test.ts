@@ -15,6 +15,7 @@ import {
   formatFilename,
 } from '../instaloader';
 import { Post, Profile } from '../structures';
+import { LoginRequiredException, InvalidArgumentException } from '../exceptions';
 import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
 
@@ -261,6 +262,145 @@ describe('Instaloader', () => {
       });
       expect(loader.context).toBeDefined();
     });
+
+    it('should set titlePattern based on dirnamePattern containing profile', () => {
+      const loader = new Instaloader({
+        dirnamePattern: '{profile}/posts',
+      });
+      expect(loader.titlePattern).toBe('{date_utc}_UTC_{typename}');
+    });
+
+    it('should set titlePattern based on dirnamePattern containing target', () => {
+      const loader = new Instaloader({
+        dirnamePattern: '{target}/posts',
+      });
+      expect(loader.titlePattern).toBe('{date_utc}_UTC_{typename}');
+    });
+
+    it('should set titlePattern with target when dirnamePattern has neither profile nor target', () => {
+      const loader = new Instaloader({
+        dirnamePattern: 'downloads',
+      });
+      expect(loader.titlePattern).toBe('{target}_{date_utc}_UTC_{typename}');
+    });
+
+    it('should use custom titlePattern when provided', () => {
+      const loader = new Instaloader({
+        titlePattern: '{custom}',
+      });
+      expect(loader.titlePattern).toBe('{custom}');
+    });
+
+    it('should set resumePrefix to null when explicitly set', () => {
+      const loader = new Instaloader({
+        resumePrefix: null,
+      });
+      expect(loader.resumePrefix).toBeNull();
+    });
+
+    it('should use custom resumePrefix when provided', () => {
+      const loader = new Instaloader({
+        resumePrefix: 'custom-prefix',
+      });
+      expect(loader.resumePrefix).toBe('custom-prefix');
+    });
+
+    it('should default resumePrefix to iterator', () => {
+      const loader = new Instaloader();
+      expect(loader.resumePrefix).toBe('iterator');
+    });
+  });
+
+  describe('slide parameter parsing', () => {
+    it('should parse single slide number', () => {
+      const loader = new Instaloader({ slide: '3' });
+      expect(loader.slide).toBe('3');
+    });
+
+    it('should parse slide range', () => {
+      const loader = new Instaloader({ slide: '1-5' });
+      expect(loader.slide).toBe('1-5');
+    });
+
+    it('should parse "last" slide', () => {
+      const loader = new Instaloader({ slide: 'last' });
+      expect(loader.slide).toBe('last');
+    });
+
+    it('should parse range ending with "last"', () => {
+      const loader = new Instaloader({ slide: '2-last' });
+      expect(loader.slide).toBe('2-last');
+    });
+
+    it('should throw InvalidArgumentException for slide <= 0', () => {
+      expect(() => new Instaloader({ slide: '0' })).toThrow(InvalidArgumentException);
+      expect(() => new Instaloader({ slide: '-1' })).toThrow(InvalidArgumentException);
+    });
+
+    it('should throw InvalidArgumentException for invalid range (start >= end)', () => {
+      expect(() => new Instaloader({ slide: '5-3' })).toThrow(InvalidArgumentException);
+      expect(() => new Instaloader({ slide: '3-3' })).toThrow(InvalidArgumentException);
+    });
+
+    it('should throw InvalidArgumentException for invalid slide format', () => {
+      expect(() => new Instaloader({ slide: '1-2-3' })).toThrow(InvalidArgumentException);
+    });
+  });
+
+  describe('close', () => {
+    it('should call context.close()', () => {
+      const loader = new Instaloader();
+      const closeSpy = vi.spyOn(loader.context, 'close');
+      loader.close();
+      expect(closeSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('session management', () => {
+    it('saveSession should throw LoginRequiredException when not logged in', () => {
+      const loader = new Instaloader();
+      // Mock is_logged_in to false
+      Object.defineProperty(loader.context, 'is_logged_in', { value: false });
+      expect(() => loader.saveSession()).toThrow(LoginRequiredException);
+    });
+
+    it('saveSession should call context.saveSession when logged in', () => {
+      const loader = new Instaloader();
+      Object.defineProperty(loader.context, 'is_logged_in', { value: true });
+      const mockSaveSession = vi.fn().mockReturnValue({ sessionid: 'test' });
+      loader.context.saveSession = mockSaveSession;
+
+      const result = loader.saveSession();
+      expect(mockSaveSession).toHaveBeenCalled();
+      expect(result).toEqual({ sessionid: 'test' });
+    });
+
+    it('loadSession should call context.loadSession', () => {
+      const loader = new Instaloader();
+      const mockLoadSession = vi.fn();
+      loader.context.loadSession = mockLoadSession;
+
+      loader.loadSession('testuser', { sessionid: 'test' });
+      expect(mockLoadSession).toHaveBeenCalledWith('testuser', { sessionid: 'test' });
+    });
+
+    it('login should call context.login', async () => {
+      const loader = new Instaloader();
+      const mockLogin = vi.fn().mockResolvedValue(undefined);
+      loader.context.login = mockLogin;
+
+      await loader.login('user', 'pass');
+      expect(mockLogin).toHaveBeenCalledWith('user', 'pass');
+    });
+
+    it('twoFactorLogin should call context.twoFactorLogin', async () => {
+      const loader = new Instaloader();
+      const mockTwoFactorLogin = vi.fn().mockResolvedValue(undefined);
+      loader.context.twoFactorLogin = mockTwoFactorLogin;
+
+      await loader.twoFactorLogin('123456');
+      expect(mockTwoFactorLogin).toHaveBeenCalledWith('123456');
+    });
   });
 
   describe('testLogin', () => {
@@ -288,7 +428,8 @@ describe('Instaloader', () => {
           },
         },
       });
-      (loader.context as unknown as { get_iphone_json: typeof mockGetIphoneJson }).get_iphone_json = mockGetIphoneJson;
+      (loader.context as unknown as { get_iphone_json: typeof mockGetIphoneJson }).get_iphone_json =
+        mockGetIphoneJson;
 
       const profile = await loader.getProfile('testprofile');
       expect(profile).toBeInstanceOf(Profile);
