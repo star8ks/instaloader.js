@@ -792,4 +792,268 @@ describe('Instaloader', () => {
       expect(loader.context.userAgent).toBeDefined();
     });
   });
+
+  describe('downloadPost', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download image post', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPost(post, 'testuser');
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should download video post when is_video is true', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const videoPost = new Post(context, {
+        ...samplePostNode,
+        is_video: true,
+        video_url: 'https://example.com/video.mp4',
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'video/mp4' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPost(videoPost, 'testuser');
+      expect(result).toBe(true);
+    });
+
+    it('should skip videos when downloadVideos is false', async () => {
+      const loader = new Instaloader({
+        quiet: true,
+        saveMetadata: false,
+        downloadVideos: false,
+        downloadVideoThumbnails: false,
+      });
+      const context = createMockContext();
+      const videoPost = new Post(context, {
+        ...samplePostNode,
+        is_video: true,
+        video_url: 'https://example.com/video.mp4',
+      });
+
+      const result = await loader.downloadPost(videoPost, 'testuser');
+      expect(result).toBe(false);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should save caption when postMetadataTxtPattern is set', async () => {
+      const loader = new Instaloader({
+        quiet: true,
+        saveMetadata: false,
+        postMetadataTxtPattern: '{caption}',
+      });
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPost(post, 'testuser');
+      // Caption should be saved - check writeFile was called for txt file
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.txt'),
+        expect.any(String),
+        'utf-8'
+      );
+    });
+  });
+
+  describe('downloadPosts', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download posts from iterator', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const posts: Post[] = [
+        new Post(context, { ...samplePostNode, shortcode: 'POST1' }),
+        new Post(context, { ...samplePostNode, shortcode: 'POST2' }),
+      ];
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      async function* postsIterator() {
+        for (const post of posts) {
+          yield post;
+        }
+      }
+
+      await loader.downloadPosts(postsIterator(), 'target');
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should respect maxCount limit', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const posts: Post[] = [
+        new Post(context, { ...samplePostNode, shortcode: 'POST1' }),
+        new Post(context, { ...samplePostNode, shortcode: 'POST2' }),
+        new Post(context, { ...samplePostNode, shortcode: 'POST3' }),
+      ];
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      let downloadCount = 0;
+      async function* postsIterator() {
+        for (const post of posts) {
+          yield post;
+          downloadCount++;
+        }
+      }
+
+      await loader.downloadPosts(postsIterator(), 'target', { maxCount: 1 });
+      // After yielding first post, download happens, then yields second,
+      // maxCount check fails and breaks - so 1 download happens
+      expect(downloadCount).toBe(1);
+    });
+
+    it('should apply postFilter', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const posts: Post[] = [
+        new Post(context, { ...samplePostNode, shortcode: 'SKIP' }),
+        new Post(context, { ...samplePostNode, shortcode: 'KEEP' }),
+      ];
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      async function* postsIterator() {
+        for (const post of posts) {
+          yield post;
+        }
+      }
+
+      await loader.downloadPosts(postsIterator(), 'target', {
+        postFilter: (post) => post.shortcode !== 'SKIP',
+      });
+
+      // Only one post should be downloaded (KEEP)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle filter errors gracefully', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const posts: Post[] = [new Post(context, samplePostNode)];
+
+      async function* postsIterator() {
+        for (const post of posts) {
+          yield post;
+        }
+      }
+
+      const errorSpy = vi.spyOn(loader.context, 'error');
+      await loader.downloadPosts(postsIterator(), 'target', {
+        postFilter: () => {
+          throw new Error('Filter error');
+        },
+      });
+
+      expect(errorSpy).toHaveBeenCalled();
+    });
+
+    it('should stop on fastUpdate when post already exists', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const posts: Post[] = [
+        new Post(context, { ...samplePostNode, shortcode: 'POST1' }),
+        new Post(context, { ...samplePostNode, shortcode: 'POST2' }),
+      ];
+
+      // First download returns false (file exists)
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      async function* postsIterator() {
+        for (const post of posts) {
+          yield post;
+        }
+      }
+
+      await loader.downloadPosts(postsIterator(), 'target', { fastUpdate: true });
+      // Should stop after first post (file exists = already downloaded)
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('downloadProfilePic', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download profile picture', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const context = createMockContext();
+      const profile = new Profile(context, sampleProfileNode);
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadProfilePic(profile);
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('slide parameter internal state', () => {
+    it('should set slideStart and slideEnd for single number', () => {
+      const loader = new Instaloader({ slide: '3' });
+      expect(loader['slideStart']).toBe(2); // 0-indexed
+      expect(loader['slideEnd']).toBe(2);
+    });
+
+    it('should set slideStart=-1 for "last"', () => {
+      const loader = new Instaloader({ slide: 'last' });
+      expect(loader['slideStart']).toBe(-1);
+    });
+
+    it('should set slideStart for range ending in "last"', () => {
+      const loader = new Instaloader({ slide: '2-last' });
+      expect(loader['slideStart']).toBe(1);
+      expect(loader['slideEnd']).toBe(-1);
+    });
+  });
 });

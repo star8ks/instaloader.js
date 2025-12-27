@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Post } from '../structures';
+import { Post, Profile } from '../structures';
 import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
 
@@ -71,7 +71,13 @@ const sampleSidecarNode: JsonObject = {
     edges: [
       { node: { display_url: 'https://example.com/1.jpg', is_video: false } },
       { node: { display_url: 'https://example.com/2.jpg', is_video: false } },
-      { node: { display_url: 'https://example.com/3.mp4', is_video: true, video_url: 'https://example.com/3.mp4' } },
+      {
+        node: {
+          display_url: 'https://example.com/3.mp4',
+          is_video: true,
+          video_url: 'https://example.com/3.mp4',
+        },
+      },
     ],
   },
   edge_media_to_caption: {
@@ -92,7 +98,9 @@ describe('Post', () => {
 
     it('should throw if node has no shortcode or code', () => {
       const context = createMockContext();
-      expect(() => new Post(context, { id: '123' })).toThrow("Node must contain 'shortcode' or 'code'");
+      expect(() => new Post(context, { id: '123' })).toThrow(
+        "Node must contain 'shortcode' or 'code'"
+      );
     });
 
     it('should accept node with "code" instead of "shortcode"', () => {
@@ -317,6 +325,208 @@ describe('Post', () => {
       expect(post.shortcode).toBe('iPhoneCode123');
       expect(post.caption).toBe('iPhone caption');
       expect(post.likes).toBe(42);
+    });
+
+    it('should handle video media type', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'iPhoneVideo123',
+        media_type: 2, // Video
+        taken_at: 1677000000,
+        caption: { text: 'Video caption' },
+        has_liked: true,
+        like_count: 100,
+        video_versions: [
+          { url: 'https://example.com/low.mp4' },
+          { url: 'https://example.com/high.mp4' },
+        ],
+        video_duration: 15.5,
+        view_count: 5000,
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      expect(post.typename).toBe('GraphVideo');
+      expect(post.is_video).toBe(true);
+      expect(post.video_url).toBe('https://example.com/high.mp4');
+      expect(post.video_duration).toBe(15.5);
+    });
+
+    it('should handle sidecar media type', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'iPhoneSidecar123',
+        media_type: 8, // Sidecar
+        taken_at: 1677000000,
+        caption: null,
+        has_liked: false,
+        like_count: 50,
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      expect(post.typename).toBe('GraphSidecar');
+    });
+
+    it('should handle null caption', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'NoCaption123',
+        media_type: 1,
+        taken_at: 1677000000,
+        caption: null,
+        has_liked: false,
+        like_count: 10,
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      expect(post.caption).toBeNull();
+    });
+
+    it('should handle missing image_versions2', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'NoImage123',
+        media_type: 1,
+        taken_at: 1677000000,
+        caption: null,
+        has_liked: false,
+        like_count: 10,
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      // Should not throw
+      expect(post.shortcode).toBe('NoImage123');
+    });
+  });
+
+  describe('date properties', () => {
+    it('should return correct date_local', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.date_local).toBeInstanceOf(Date);
+    });
+
+    it('should return correct date_utc', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.date_utc).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('owner profile', () => {
+    it('should return owner profile asynchronously', async () => {
+      const context = createMockContext();
+      // Provide owner data in the node
+      const nodeWithOwner = {
+        ...samplePostNode,
+        owner: {
+          id: '123456789',
+          username: 'testuser',
+          is_private: false,
+        },
+      };
+      const post = new Post(context, nodeWithOwner);
+      const profile = await post.getOwnerProfile();
+      expect(profile).toBeInstanceOf(Profile);
+      expect(profile.username).toBe('testuser');
+    });
+
+    it('should cache owner profile on subsequent calls', async () => {
+      const context = createMockContext();
+      const nodeWithOwner = {
+        ...samplePostNode,
+        owner: {
+          id: '123456789',
+          username: 'testuser',
+          is_private: false,
+        },
+      };
+      const post = new Post(context, nodeWithOwner);
+      const profile1 = await post.getOwnerProfile();
+      const profile2 = await post.getOwnerProfile();
+      expect(profile1).toBe(profile2); // Same instance
+    });
+  });
+
+  describe('fromIphoneStruct with carousel', () => {
+    it('should handle carousel media (sidecar)', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'iPhoneCarousel123',
+        media_type: 8, // Sidecar
+        taken_at: 1677000000,
+        caption: { text: 'Carousel post' },
+        has_liked: false,
+        like_count: 75,
+        carousel_media: [
+          {
+            media_type: 1,
+            image_versions2: {
+              candidates: [{ url: 'https://example.com/slide1.jpg' }],
+            },
+          },
+          {
+            media_type: 2,
+            image_versions2: {
+              candidates: [{ url: 'https://example.com/slide2_thumb.jpg' }],
+            },
+            video_versions: [{ url: 'https://example.com/slide2.mp4' }],
+          },
+        ],
+        user: {
+          pk: '999',
+          username: 'carouseluser',
+          is_private: false,
+        },
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      expect(post.typename).toBe('GraphSidecar');
+      expect(post.mediacount).toBe(2);
+    });
+
+    it('should handle title field', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'TitleCode123',
+        media_type: 1,
+        taken_at: 1677000000,
+        caption: null,
+        title: 'Video Title',
+        has_liked: false,
+        like_count: 10,
+        user: {
+          pk: '999',
+          username: 'titleuser',
+          is_private: false,
+        },
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      // title is stored in the node
+      expect(post.toJSON()['title']).toBe('Video Title');
+    });
+
+    it('should handle accessibility_caption field', () => {
+      const context = createMockContext();
+      const iphoneMedia: JsonObject = {
+        pk: '12345678901234567',
+        code: 'AccessCode123',
+        media_type: 1,
+        taken_at: 1677000000,
+        caption: null,
+        accessibility_caption: 'A photo showing sunset',
+        has_liked: false,
+        like_count: 10,
+      };
+
+      const post = Post.fromIphoneStruct(context, iphoneMedia);
+      expect(post.accessibility_caption).toBe('A photo showing sunset');
     });
   });
 });

@@ -245,6 +245,29 @@ describe('Hashtag', () => {
     });
   });
 
+  describe('fromName', () => {
+    it('should create Hashtag with lowercase name', async () => {
+      const mockGetIphoneJson = vi.fn().mockResolvedValue({
+        data: {
+          ...sampleHashtagNode,
+          name: 'photography',
+        },
+      });
+      const context = createMockContext({
+        get_iphone_json: mockGetIphoneJson,
+      });
+
+      const hashtag = await Hashtag.fromName(context, 'Photography');
+      expect(hashtag).toBeInstanceOf(Hashtag);
+      expect(hashtag.name).toBe('photography');
+      expect(mockGetIphoneJson).toHaveBeenCalledWith('api/v1/tags/web_info/', {
+        __a: 1,
+        __d: 'dis',
+        tag_name: 'photography',
+      });
+    });
+  });
+
   describe('getPosts', () => {
     it('should return an async generator', () => {
       const context = createMockContext();
