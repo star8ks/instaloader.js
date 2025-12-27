@@ -468,16 +468,7 @@ export async function resumableIteration<T>(
   options: ResumableIterationOptions<T>
 ): Promise<ResumableIterationResult> {
   // Note: save is not used directly here - caller is responsible for saving on interrupt
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const {
-    context,
-    iterator,
-    load,
-    save: _save,
-    formatPath,
-    checkBbd = true,
-    enabled = true,
-  } = options;
+  const { context, iterator, load, formatPath, checkBbd = true, enabled = true } = options;
 
   // If disabled or not a NodeIterator, just return defaults
   if (!enabled || !(iterator instanceof NodeIterator)) {
