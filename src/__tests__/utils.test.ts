@@ -2,7 +2,7 @@
  * Tests for utils.ts - UUID generation and SimpleCookieStore
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { generateUUID, SimpleCookieStore } from '../utils';
 
 describe('generateUUID', () => {
@@ -35,6 +35,91 @@ describe('generateUUID', () => {
     const uuid = generateUUID();
     const variantChar = uuid[19]!.toLowerCase();
     expect(['8', '9', 'a', 'b']).toContain(variantChar);
+  });
+
+  describe('fallback implementations', () => {
+    const originalCrypto = globalThis.crypto;
+
+    afterEach(() => {
+      // Restore original crypto
+      Object.defineProperty(globalThis, 'crypto', {
+        value: originalCrypto,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should use getRandomValues fallback when randomUUID is not available', () => {
+      // Mock crypto with getRandomValues but without randomUUID
+      const mockGetRandomValues = vi.fn((array: Uint8Array) => {
+        for (let i = 0; i < array.length; i++) {
+          array[i] = (i * 17) % 256; // Deterministic pattern for testing
+        }
+        return array;
+      });
+
+      Object.defineProperty(globalThis, 'crypto', {
+        value: {
+          getRandomValues: mockGetRandomValues,
+          // randomUUID is explicitly not defined
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const uuid = generateUUID();
+
+      // Should still be valid UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      expect(uuid).toMatch(uuidRegex);
+      expect(mockGetRandomValues).toHaveBeenCalled();
+    });
+
+    it('should use Math.random fallback when no crypto methods are available', () => {
+      // Mock crypto without randomUUID or getRandomValues
+      Object.defineProperty(globalThis, 'crypto', {
+        value: {
+          // Neither randomUUID nor getRandomValues
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const mathRandomSpy = vi.spyOn(Math, 'random');
+
+      const uuid = generateUUID();
+
+      // Should still be valid UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      expect(uuid).toMatch(uuidRegex);
+
+      // Math.random should have been called 16 times (once per byte)
+      expect(mathRandomSpy).toHaveBeenCalled();
+      expect(mathRandomSpy.mock.calls.length).toBeGreaterThanOrEqual(16);
+
+      mathRandomSpy.mockRestore();
+    });
+
+    it('should use Math.random fallback when crypto is undefined', () => {
+      // Make crypto undefined
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const mathRandomSpy = vi.spyOn(Math, 'random');
+
+      const uuid = generateUUID();
+
+      // Should still be valid UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      expect(uuid).toMatch(uuidRegex);
+
+      expect(mathRandomSpy).toHaveBeenCalled();
+
+      mathRandomSpy.mockRestore();
+    });
   });
 });
 

@@ -164,6 +164,18 @@ describe('Hashtag', () => {
       expect(count).toBe(1000000);
     });
 
+    it('should fallback to media_count when edge_hashtag_to_media is not available', async () => {
+      const context = createMockContext();
+      const hashtagWithMediaCount = {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: undefined,
+        media_count: 500000,
+      };
+      const hashtag = new Hashtag(context, hashtagWithMediaCount);
+      const count = await hashtag.getMediacount();
+      expect(count).toBe(500000);
+    });
+
     it('should return correct allow_following', async () => {
       const context = createMockContext();
       const hashtag = new Hashtag(context, sampleHashtagNode);
@@ -176,6 +188,18 @@ describe('Hashtag', () => {
       const hashtag = new Hashtag(context, sampleHashtagNode);
       const isFollowing = await hashtag.getIsFollowing();
       expect(isFollowing).toBe(false);
+    });
+
+    it('should fallback to following field when is_following is not available', async () => {
+      const context = createMockContext();
+      const hashtagWithFollowing = {
+        ...sampleHashtagNode,
+        is_following: undefined,
+        following: true,
+      };
+      const hashtag = new Hashtag(context, hashtagWithFollowing);
+      const isFollowing = await hashtag.getIsFollowing();
+      expect(isFollowing).toBe(true);
     });
   });
 
@@ -190,6 +214,21 @@ describe('Hashtag', () => {
       expect(posts.length).toBe(1);
       expect(posts[0]).toBeInstanceOf(Post);
       expect(posts[0]?.shortcode).toBe('ABC123');
+    });
+
+    it('should handle errors gracefully and return nothing', async () => {
+      const context = createMockContext();
+      // Create hashtag without edge_hashtag_to_top_posts data to trigger error
+      const hashtagWithoutTopPosts = {
+        ...sampleHashtagNode,
+        edge_hashtag_to_top_posts: undefined,
+      };
+      const hashtag = new Hashtag(context, hashtagWithoutTopPosts);
+      const posts: Post[] = [];
+      for await (const post of hashtag.getTopPosts()) {
+        posts.push(post);
+      }
+      expect(posts).toHaveLength(0);
     });
   });
 
@@ -234,14 +273,95 @@ describe('Hashtag', () => {
   });
 
   describe('getPostsResumable', () => {
-    // Note: Testing getPostsResumable() in isolation would require mocking
-    // the GraphQL API. The method itself just creates a NodeIterator with
-    // the right configuration. Full integration tests would be needed to
-    // verify the iteration behavior.
     it('should be a method', () => {
       const context = createMockContext();
       const hashtag = new Hashtag(context, sampleHashtagNode);
       expect(typeof hashtag.getPostsResumable).toBe('function');
+    });
+
+    it('should return a NodeIterator object that can iterate', async () => {
+      // Mock graphql_query to return proper paginated data
+      const mockGraphqlQuery = vi.fn().mockResolvedValue({
+        data: {
+          hashtag: {
+            edge_hashtag_to_media: {
+              edges: [
+                {
+                  node: {
+                    id: '123',
+                    shortcode: 'ABC123',
+                    __typename: 'GraphImage',
+                    display_url: 'https://example.com/post1.jpg',
+                    is_video: false,
+                    taken_at_timestamp: 1677000000,
+                    edge_media_to_caption: { edges: [] },
+                    edge_media_preview_like: { count: 100 },
+                    edge_media_to_comment: { count: 10 },
+                    owner: { id: '999', username: 'poster' },
+                  },
+                },
+              ],
+              page_info: { has_next_page: false, end_cursor: null },
+              count: 1,
+            },
+          },
+        },
+      });
+      const context = createMockContext({
+        graphql_query: mockGraphqlQuery,
+      });
+      const hashtag = new Hashtag(context, sampleHashtagNode);
+      const iterator = hashtag.getPostsResumable();
+
+      // Verify it's an object (the NodeIterator)
+      expect(iterator).toBeDefined();
+      expect(typeof iterator).toBe('object');
+
+      // Verify we can iterate over it
+      const posts: Post[] = [];
+      for await (const post of iterator) {
+        posts.push(post);
+      }
+      expect(posts).toHaveLength(1);
+      expect(posts[0]).toBeInstanceOf(Post);
+      expect(mockGraphqlQuery).toHaveBeenCalled();
+    });
+  });
+
+  describe('_obtainMetadata and getMetadata', () => {
+    it('should fetch metadata when not available', async () => {
+      const mockGetIphoneJson = vi.fn().mockResolvedValue({
+        description: 'Full description from API',
+        id: '17843829475633456',
+        name: 'photography',
+        profile_pic_url: 'https://example.com/hashtag.jpg',
+      });
+      const context = createMockContext({
+        get_iphone_json: mockGetIphoneJson,
+      });
+      // Create hashtag without description
+      const hashtagWithoutDescription = {
+        ...sampleHashtagNode,
+        description: undefined,
+      };
+      delete (hashtagWithoutDescription as Record<string, unknown>)['description'];
+      const hashtag = new Hashtag(context, hashtagWithoutDescription);
+
+      // First call will throw because description is not in node
+      // Second call after _obtainMetadata should succeed
+      await hashtag.getDescription();
+      // Since we're mocking the API to return description, it should work
+      expect(mockGetIphoneJson).toHaveBeenCalled();
+    });
+
+    it('should return cached metadata without fetching again', async () => {
+      const context = createMockContext();
+      const hashtag = new Hashtag(context, sampleHashtagNode);
+
+      // First call should use cached data
+      const description1 = await hashtag.getDescription();
+      const description2 = await hashtag.getDescription();
+      expect(description1).toBe(description2);
     });
   });
 
@@ -306,6 +426,63 @@ describe('Hashtag', () => {
       expect(posts).toHaveLength(2);
       expect(posts[0]?.shortcode).toBe('post1');
       expect(posts[1]?.shortcode).toBe('post2');
+    });
+
+    it('should handle pagination with has_next_page', async () => {
+      const mockGetIphoneJson = vi.fn().mockResolvedValue({
+        data: {
+          edge_hashtag_to_media: {
+            edges: [
+              {
+                node: { shortcode: 'post3', id: '333', __typename: 'GraphImage', is_video: false },
+              },
+            ],
+            page_info: { has_next_page: false, end_cursor: null },
+            count: 3,
+          },
+        },
+      });
+      const context = createMockContext({
+        get_iphone_json: mockGetIphoneJson,
+      });
+      const hashtagWithPagination = {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            { node: { shortcode: 'post1', id: '111', __typename: 'GraphImage', is_video: false } },
+            { node: { shortcode: 'post2', id: '222', __typename: 'GraphImage', is_video: false } },
+          ],
+          page_info: { has_next_page: true, end_cursor: 'cursor123' },
+          count: 3,
+        },
+      };
+      const hashtag = new Hashtag(context, hashtagWithPagination);
+      const posts = [];
+      for await (const post of hashtag.getPosts()) {
+        posts.push(post);
+      }
+      expect(posts).toHaveLength(3);
+      expect(posts[0]?.shortcode).toBe('post1');
+      expect(posts[1]?.shortcode).toBe('post2');
+      expect(posts[2]?.shortcode).toBe('post3');
+    });
+
+    it('should handle errors gracefully and return nothing', async () => {
+      const mockGetJson = vi.fn().mockRejectedValue(new Error('API Error'));
+      const context = createMockContext({
+        getJson: mockGetJson,
+      });
+      // Missing edge_hashtag_to_media will cause an error when trying to iterate
+      const hashtag = new Hashtag(context, {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: undefined,
+      });
+      const posts = [];
+      // Should not throw, just return empty
+      for await (const post of hashtag.getPosts()) {
+        posts.push(post);
+      }
+      expect(posts).toHaveLength(0);
     });
   });
 });

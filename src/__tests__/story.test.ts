@@ -45,12 +45,8 @@ const sampleStoryItemNode: JsonObject = {
 const sampleVideoStoryItemNode: JsonObject = {
   id: '3223456789012345678',
   __typename: 'GraphStoryVideo',
-  display_resources: [
-    { src: 'https://example.com/story_thumb.jpg' },
-  ],
-  video_resources: [
-    { src: 'https://example.com/story_video.mp4' },
-  ],
+  display_resources: [{ src: 'https://example.com/story_thumb.jpg' }],
+  video_resources: [{ src: 'https://example.com/story_video.mp4' }],
   is_video: true,
   taken_at_timestamp: 1677000000,
   expiring_at_timestamp: 1677086400,
@@ -68,8 +64,23 @@ const sampleStoryNode: JsonObject = {
     is_private: false,
   },
   items: [
-    { id: '1001', __typename: 'GraphStoryImage', is_video: false, taken_at_timestamp: 1677000000, expiring_at_timestamp: 1677086400, display_resources: [{ src: 'https://example.com/1.jpg' }] },
-    { id: '1002', __typename: 'GraphStoryVideo', is_video: true, taken_at_timestamp: 1677001000, expiring_at_timestamp: 1677087400, display_resources: [{ src: 'https://example.com/2.jpg' }], video_resources: [{ src: 'https://example.com/2.mp4' }] },
+    {
+      id: '1001',
+      __typename: 'GraphStoryImage',
+      is_video: false,
+      taken_at_timestamp: 1677000000,
+      expiring_at_timestamp: 1677086400,
+      display_resources: [{ src: 'https://example.com/1.jpg' }],
+    },
+    {
+      id: '1002',
+      __typename: 'GraphStoryVideo',
+      is_video: true,
+      taken_at_timestamp: 1677001000,
+      expiring_at_timestamp: 1677087400,
+      display_resources: [{ src: 'https://example.com/2.jpg' }],
+      video_resources: [{ src: 'https://example.com/2.mp4' }],
+    },
   ],
   latest_reel_media: 1677001000,
   seen: null,
@@ -89,7 +100,14 @@ const sampleHighlightNode: JsonObject = {
     is_private: false,
   },
   items: [
-    { id: '2001', __typename: 'GraphStoryImage', is_video: false, taken_at_timestamp: 1677000000, expiring_at_timestamp: 1677086400, display_resources: [{ src: 'https://example.com/h1.jpg' }] },
+    {
+      id: '2001',
+      __typename: 'GraphStoryImage',
+      is_video: false,
+      taken_at_timestamp: 1677000000,
+      expiring_at_timestamp: 1677086400,
+      display_resources: [{ src: 'https://example.com/h1.jpg' }],
+    },
   ],
   latest_reel_media: 1677000000,
   seen: null,
@@ -345,6 +363,126 @@ describe('Highlight', () => {
       const context = createMockContext();
       const highlight = new Highlight(context, sampleHighlightNode);
       expect(highlight.toString()).toBe('<Highlight by highlightowner: Best Moments>');
+    });
+  });
+
+  describe('constructor with owner', () => {
+    it('should accept owner parameter and use it for owner_profile', () => {
+      const context = createMockContext();
+      const ownerProfile = new Profile(context, {
+        id: '999',
+        username: 'injectedowner',
+        is_private: false,
+        full_name: 'Injected Owner',
+      });
+      const highlight = new Highlight(context, sampleHighlightNode, ownerProfile);
+      expect(highlight.owner_profile).toBe(ownerProfile);
+      expect(highlight.owner_username).toBe('injectedowner');
+    });
+  });
+});
+
+describe('StoryItem additional tests', () => {
+  describe('edge cases', () => {
+    it('should handle null caption', () => {
+      const context = createMockContext();
+      const nodeWithoutCaption = { ...sampleStoryItemNode };
+      delete (nodeWithoutCaption as Record<string, unknown>)['edge_media_to_caption'];
+      const storyItem = new StoryItem(context, nodeWithoutCaption);
+      expect(storyItem.caption).toBeNull();
+    });
+
+    it('should return empty hashtags when no caption', () => {
+      const context = createMockContext();
+      const nodeWithoutCaption = { ...sampleStoryItemNode };
+      delete (nodeWithoutCaption as Record<string, unknown>)['edge_media_to_caption'];
+      const storyItem = new StoryItem(context, nodeWithoutCaption);
+      expect(storyItem.caption_hashtags).toEqual([]);
+    });
+
+    it('should return empty mentions when no caption', () => {
+      const context = createMockContext();
+      const nodeWithoutCaption = { ...sampleStoryItemNode };
+      delete (nodeWithoutCaption as Record<string, unknown>)['edge_media_to_caption'];
+      const storyItem = new StoryItem(context, nodeWithoutCaption);
+      expect(storyItem.caption_mentions).toEqual([]);
+    });
+
+    it('should not be equal to a StoryItem with different mediaid', () => {
+      const context = createMockContext();
+      const item1 = new StoryItem(context, sampleStoryItemNode);
+      const item2 = new StoryItem(context, { ...sampleStoryItemNode, id: '9999999999999999999' });
+      expect(item1.equals(item2)).toBe(false);
+    });
+
+    it('should return first resource url when single display_resource', () => {
+      const context = createMockContext();
+      const nodeWithSingleResource = {
+        ...sampleStoryItemNode,
+        display_resources: [{ src: 'https://example.com/single.jpg' }],
+      };
+      const storyItem = new StoryItem(context, nodeWithSingleResource);
+      expect(storyItem.url).toBe('https://example.com/single.jpg');
+    });
+  });
+
+  describe('date properties', () => {
+    it('should return correct date_local', () => {
+      const context = createMockContext();
+      const storyItem = new StoryItem(context, sampleStoryItemNode);
+      expect(storyItem.date_local).toBeInstanceOf(Date);
+      expect(storyItem.date_local.getTime()).toBe(1677000000 * 1000);
+    });
+
+    it('should return correct expiring_local', () => {
+      const context = createMockContext();
+      const storyItem = new StoryItem(context, sampleStoryItemNode);
+      expect(storyItem.expiring_local).toBeInstanceOf(Date);
+      expect(storyItem.expiring_local.getTime()).toBe(1677086400 * 1000);
+    });
+  });
+});
+
+describe('Story additional tests', () => {
+  describe('edge cases', () => {
+    it('should return correct latest_media_local', () => {
+      const context = createMockContext();
+      const story = new Story(context, sampleStoryNode);
+      expect(story.latest_media_local).toBeInstanceOf(Date);
+      expect(story.latest_media_local.getTime()).toBe(1677001000 * 1000);
+    });
+
+    it('should return correct last_seen_local when seen', () => {
+      const context = createMockContext();
+      const seenStory = new Story(context, { ...sampleStoryNode, seen: 1677000500 });
+      expect(seenStory.last_seen_local?.getTime()).toBe(1677000500 * 1000);
+    });
+
+    it('should not be equal to a Story with different unique_id', () => {
+      const context = createMockContext();
+      const story1 = new Story(context, sampleStoryNode);
+      const story2 = new Story(context, {
+        ...sampleStoryNode,
+        items: [
+          {
+            id: '9999',
+            __typename: 'GraphStoryImage',
+            is_video: false,
+            taken_at_timestamp: 1677000000,
+            expiring_at_timestamp: 1677086400,
+            display_resources: [{ src: 'https://example.com/diff.jpg' }],
+          },
+        ],
+      });
+      expect(story1.equals(story2)).toBe(false);
+    });
+
+    it('should cache owner_profile on subsequent calls', () => {
+      const context = createMockContext();
+      const story = new Story(context, sampleStoryNode);
+      const profile1 = story.owner_profile;
+      const profile2 = story.owner_profile;
+      expect(profile1).toBe(profile2); // Same instance
     });
   });
 });

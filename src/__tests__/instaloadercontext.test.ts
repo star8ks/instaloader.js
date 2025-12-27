@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  InstaloaderContext,
-  defaultUserAgent,
-  defaultIphoneHeaders,
-} from '../instaloadercontext';
+import { InstaloaderContext, defaultUserAgent, defaultIphoneHeaders } from '../instaloadercontext';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -294,9 +290,7 @@ describe('InstaloaderContext', () => {
         headers: new Headers(),
       });
 
-      await expect(context.head('https://example.com/notfound')).rejects.toThrow(
-        'Not Found'
-      );
+      await expect(context.head('https://example.com/notfound')).rejects.toThrow('Not Found');
     });
 
     it('should throw QueryReturnedForbiddenException on 403', async () => {
@@ -306,9 +300,7 @@ describe('InstaloaderContext', () => {
         headers: new Headers(),
       });
 
-      await expect(context.head('https://example.com/forbidden')).rejects.toThrow(
-        'Forbidden'
-      );
+      await expect(context.head('https://example.com/forbidden')).rejects.toThrow('Forbidden');
     });
   });
 });
@@ -548,6 +540,30 @@ describe('InstaloaderContext.testLogin', () => {
     const username = await context.testLogin();
     expect(username).toBeNull();
   });
+
+  it('should return null on AbortDownloadException', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { AbortDownloadException } = await import('../exceptions');
+    mockFetch.mockRejectedValueOnce(new AbortDownloadException('Download aborted'));
+
+    const username = await context.testLogin();
+    expect(username).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error when checking if logged in')
+    );
+  });
+
+  it('should return null on ConnectionException', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ConnectionException } = await import('../exceptions');
+    mockFetch.mockRejectedValueOnce(new ConnectionException('Connection failed'));
+
+    const username = await context.testLogin();
+    expect(username).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error when checking if logged in')
+    );
+  });
 });
 
 describe('InstaloaderContext.login', () => {
@@ -566,6 +582,88 @@ describe('InstaloaderContext.login', () => {
     });
 
     await expect(context.login('user', 'pass')).rejects.toThrow('CSRF');
+  });
+
+  it('should throw LoginException when login response is not valid JSON', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => {
+          throw new Error('Invalid JSON');
+        },
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('JSON decode fail');
+  });
+
+  it('should throw LoginException when status is not ok with message', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'fail',
+          message: 'Some error message',
+        }),
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('Some error message');
+  });
+
+  it('should throw LoginException when status is not ok without message', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'error',
+          // No message field
+        }),
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('"error" status');
+  });
+
+  it('should throw LoginException when checkpoint is required', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          checkpoint_url: 'https://www.instagram.com/challenge/',
+        }),
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('Checkpoint required');
   });
 
   it('should throw BadCredentialsException on wrong password', async () => {
@@ -638,6 +736,48 @@ describe('InstaloaderContext.login', () => {
     await expect(context.login('user', 'pass')).rejects.toThrow('two-factor');
   });
 
+  it('should include all two-factor info fields when available', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'ok',
+          two_factor_required: true,
+          two_factor_info: {
+            two_factor_identifier: '2fa-id-456',
+            obfuscated_phone_number: '***5678',
+            show_messenger_code_option: true,
+            show_new_login_screen: false,
+            show_trusted_device_option: true,
+            pending_trusted_notification_polling: false,
+          },
+        }),
+      });
+
+    const { TwoFactorAuthRequiredException } = await import('../exceptions');
+    try {
+      await context.login('user', 'pass');
+      expect.fail('Should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(TwoFactorAuthRequiredException);
+      const tfaError = e as InstanceType<typeof TwoFactorAuthRequiredException>;
+      expect(tfaError.twoFactorInfo.identifier).toBe('2fa-id-456');
+      expect(tfaError.twoFactorInfo.obfuscatedPhoneNumber).toBe('***5678');
+      expect(tfaError.twoFactorInfo.showMessengerCodeOption).toBe(true);
+      expect(tfaError.twoFactorInfo.showNewLoginScreen).toBe(false);
+      expect(tfaError.twoFactorInfo.showTrustedDeviceOption).toBe(true);
+      expect(tfaError.twoFactorInfo.pendingTrustedNotificationPolling).toBe(false);
+    }
+  });
+
   it('should set username and userId on successful login', async () => {
     const headers = new Headers();
     headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
@@ -666,6 +806,49 @@ describe('InstaloaderContext.login', () => {
     expect(context.username).toBe('testuser');
     expect(context.userId).toBe('12345');
     expect(context.is_logged_in).toBe(true);
+  });
+
+  it('should throw LoginException on unexpected response without message', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'ok',
+          // Response with status: 'ok' but no 'authenticated' field and no message - blocked IP case
+        }),
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('blocked IP');
+  });
+
+  it('should throw LoginException on unexpected response with message', async () => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'ok',
+          // Response with status: 'ok' but no 'authenticated' field, has a message
+          message: 'checkpoint_required',
+        }),
+      });
+
+    await expect(context.login('user', 'pass')).rejects.toThrow('checkpoint_required');
   });
 });
 
@@ -768,5 +951,46 @@ describe('InstaloaderContext.twoFactorLogin', () => {
     });
 
     await expect(context.twoFactorLogin('wrongcode')).rejects.toThrow('2FA error');
+  });
+
+  it('should throw BadCredentialsException on 2FA failure without message', async () => {
+    // First trigger 2FA requirement
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'csrftoken=testtoken; Path=/');
+
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        headers,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          status: 'ok',
+          two_factor_required: true,
+          two_factor_info: {
+            two_factor_identifier: '2fa-id-123',
+          },
+        }),
+      });
+
+    try {
+      await context.login('testuser', 'pass');
+    } catch {
+      // Expected 2FA exception
+    }
+
+    // 2FA fails with non-ok status but no message
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({
+        status: 'fail',
+        // No message field - tests line 1145-1146
+      }),
+    });
+
+    await expect(context.twoFactorLogin('wrongcode')).rejects.toThrow('"fail" status');
   });
 });

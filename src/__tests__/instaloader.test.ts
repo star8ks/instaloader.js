@@ -15,7 +15,7 @@ import {
   sanitizePath,
   formatFilename,
 } from '../instaloader';
-import { Post, Profile, StoryItem } from '../structures';
+import { Post, Profile, StoryItem, Hashtag } from '../structures';
 import { LoginRequiredException, InvalidArgumentException } from '../exceptions';
 import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
@@ -91,6 +91,15 @@ const sampleProfileNode: JsonObject = {
   edge_owner_to_timeline_media: { count: 50 },
   edge_followed_by: { count: 1000 },
   edge_follow: { count: 500 },
+};
+
+// Sample hashtag data
+const sampleHashtagNode: JsonObject = {
+  id: '17843829475633456',
+  name: 'photography',
+  profile_pic_url: 'https://example.com/hashtag.jpg',
+  edge_hashtag_to_media: { count: 1000000 },
+  edge_hashtag_to_top_posts: { edges: [] },
 };
 
 describe('getConfigDir', () => {
@@ -435,6 +444,45 @@ describe('Instaloader', () => {
       const result = await loader.testLogin();
       expect(result).toBe(true);
       expect(mockTestLogin).toHaveBeenCalled();
+    });
+  });
+
+  describe('saveSessionToFile', () => {
+    it('should save session to file', async () => {
+      const loader = new Instaloader({ quiet: true });
+      Object.defineProperty(loader.context, 'is_logged_in', { value: true });
+      const mockSaveSession = vi.fn().mockReturnValue({ sessionid: 'test' });
+      loader.context.saveSession = mockSaveSession;
+
+      await loader.saveSessionToFile('/tmp/session.json');
+      expect(mockSaveSession).toHaveBeenCalled();
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/tmp/session.json',
+        expect.stringContaining('sessionid'),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('loadSessionFromFile', () => {
+    it('should load session from file when file exists', async () => {
+      const loader = new Instaloader({ quiet: true });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readFile).mockResolvedValue('{"sessionid": "test123"}');
+      const mockLoadSession = vi.fn();
+      loader.context.loadSession = mockLoadSession;
+
+      await loader.loadSessionFromFile('testuser', '/tmp/session.json');
+      expect(mockLoadSession).toHaveBeenCalledWith('testuser', { sessionid: 'test123' });
+    });
+
+    it('should throw error when file does not exist', async () => {
+      const loader = new Instaloader({ quiet: true });
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await expect(loader.loadSessionFromFile('testuser', '/tmp/missing.json')).rejects.toThrow(
+        'Session file not found'
+      );
     });
   });
 
@@ -1054,6 +1102,486 @@ describe('Instaloader', () => {
       const loader = new Instaloader({ slide: '2-last' });
       expect(loader['slideStart']).toBe(1);
       expect(loader['slideEnd']).toBe(-1);
+    });
+  });
+
+  describe('downloadPost sidecar', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download sidecar post slides', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+      const sidecarPost = new Post(context, {
+        ...samplePostNode,
+        __typename: 'GraphSidecar',
+        edge_sidecar_to_children: {
+          edges: [
+            { node: { display_url: 'https://example.com/1.jpg', is_video: false } },
+            { node: { display_url: 'https://example.com/2.jpg', is_video: false } },
+          ],
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPost(sidecarPost, 'testuser');
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should apply slide filter to sidecar', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false, slide: '2' });
+      const context = createMockContext();
+      const sidecarPost = new Post(context, {
+        ...samplePostNode,
+        __typename: 'GraphSidecar',
+        edge_sidecar_to_children: {
+          edges: [
+            { node: { display_url: 'https://example.com/1.jpg', is_video: false } },
+            { node: { display_url: 'https://example.com/2.jpg', is_video: false } },
+            { node: { display_url: 'https://example.com/3.jpg', is_video: false } },
+          ],
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPost(sidecarPost, 'testuser');
+      // Only slide 2 should be downloaded
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should download sidecar video slides', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false, downloadVideos: true });
+      const context = createMockContext();
+      const sidecarPost = new Post(context, {
+        ...samplePostNode,
+        __typename: 'GraphSidecar',
+        edge_sidecar_to_children: {
+          edges: [
+            { node: { display_url: 'https://example.com/1.jpg', is_video: false } },
+            {
+              node: {
+                display_url: 'https://example.com/2_thumb.jpg',
+                is_video: true,
+                video_url: 'https://example.com/2.mp4',
+              },
+            },
+          ],
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'video/mp4' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPost(sidecarPost, 'testuser');
+      // Both slides should be downloaded
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('downloadPost video thumbnail', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download video thumbnail when enabled', async () => {
+      const loader = new Instaloader({
+        quiet: true,
+        saveMetadata: false,
+        downloadVideoThumbnails: true,
+      });
+      const context = createMockContext();
+      const videoPost = new Post(context, {
+        ...samplePostNode,
+        is_video: true,
+        video_url: 'https://example.com/video.mp4',
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'video/mp4' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPost(videoPost, 'testuser');
+      // Video + thumbnail = 2 downloads
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('downloadPic edge cases', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should handle URL without query string extension', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/png' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPic(
+        '/tmp/test',
+        'https://example.com/image.jpg', // No query string
+        new Date()
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('should check for file with corrected extension', async () => {
+      const loader = new Instaloader({ quiet: true });
+
+      // First call for nominal filename returns false
+      // Second call for final filename returns true (file exists)
+      let callCount = 0;
+      vi.mocked(fs.existsSync).mockImplementation(() => {
+        callCount++;
+        return callCount > 1;
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/png' }), // Different extension
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPic(
+        '/tmp/test',
+        'https://example.com/image.jpg?123',
+        new Date()
+      );
+
+      // Should return false because final file exists
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('downloadHashtag', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download posts from hashtag with resumable iterator', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      // Create hashtag with posts in its resumable iterator
+      const hashtag = new Hashtag(context, {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            { node: { shortcode: 'POST1', id: '111', __typename: 'GraphImage', is_video: false } },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 1,
+        },
+      });
+
+      // Mock getPostsResumable to return a working iterator
+      hashtag.getPostsResumable = function* () {
+        yield new Post(context, {
+          ...samplePostNode,
+          shortcode: 'HTPOST1',
+          display_url: 'https://example.com/htpost.jpg',
+        });
+      } as () => Generator<Post, void, unknown>;
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag);
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should respect maxCount option', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      const hashtag = new Hashtag(context, sampleHashtagNode);
+
+      // Mock getPostsResumable to return multiple posts
+      hashtag.getPostsResumable = function* () {
+        yield new Post(context, { ...samplePostNode, shortcode: 'P1' });
+        yield new Post(context, { ...samplePostNode, shortcode: 'P2' });
+        yield new Post(context, { ...samplePostNode, shortcode: 'P3' });
+      } as () => Generator<Post, void, unknown>;
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag, { maxCount: 1 });
+      // Only 1 post should be downloaded
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should apply postFilter option', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      const hashtag = new Hashtag(context, sampleHashtagNode);
+
+      // Mock getPostsResumable to return multiple posts
+      hashtag.getPostsResumable = function* () {
+        yield new Post(context, { ...samplePostNode, shortcode: 'SKIP' });
+        yield new Post(context, { ...samplePostNode, shortcode: 'KEEP' });
+      } as () => Generator<Post, void, unknown>;
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag, {
+        postFilter: (post) => post.shortcode !== 'SKIP',
+      });
+      // Only KEEP post should be downloaded
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use non-resumable iterator when resumable is false', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      const hashtag = new Hashtag(context, {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            {
+              node: {
+                shortcode: 'NR1',
+                id: '111',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/nr1.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 1,
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag, { resumable: false });
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should respect maxCount with non-resumable iterator', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      const hashtag = new Hashtag(context, {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            {
+              node: {
+                shortcode: 'NR1',
+                id: '111',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/nr1.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+            {
+              node: {
+                shortcode: 'NR2',
+                id: '222',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/nr2.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+            {
+              node: {
+                shortcode: 'NR3',
+                id: '333',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/nr3.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 3,
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag, { resumable: false, maxCount: 1 });
+      // Only 1 post should be downloaded due to maxCount
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should apply postFilter with non-resumable iterator', async () => {
+      const loader = new Instaloader({ quiet: true, saveMetadata: false });
+      const context = createMockContext();
+
+      const hashtag = new Hashtag(context, {
+        ...sampleHashtagNode,
+        edge_hashtag_to_media: {
+          edges: [
+            {
+              node: {
+                shortcode: 'SKIP',
+                id: '111',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/skip.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+            {
+              node: {
+                shortcode: 'KEEP',
+                id: '222',
+                __typename: 'GraphImage',
+                is_video: false,
+                display_url: 'https://example.com/keep.jpg',
+                taken_at_timestamp: 1609459200,
+                edge_media_to_caption: { edges: [] },
+                edge_media_preview_like: { count: 10 },
+                edge_media_to_comment: { count: 1 },
+                owner: { id: '999', username: 'test' },
+              },
+            },
+          ],
+          page_info: { has_next_page: false, end_cursor: null },
+          count: 2,
+        },
+      });
+
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadHashtag(hashtag, {
+        resumable: false,
+        postFilter: (post) => post.shortcode !== 'SKIP',
+      });
+      // Only KEEP post should be downloaded due to filter
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getPost', () => {
+    it('should call Post.fromShortcode with correct arguments', async () => {
+      const loader = new Instaloader({ quiet: true });
+
+      // Mock the context's doc_id_graphql_query to return post data
+      // Note: API returns XDTGraphImage which is then mapped to GraphImage internally
+      const mockDocIdQuery = vi.fn().mockResolvedValue({
+        data: {
+          xdt_shortcode_media: {
+            ...samplePostNode,
+            shortcode: 'TESTCODE',
+            __typename: 'XDTGraphImage', // API returns XDT prefixed types
+          },
+        },
+      });
+      (
+        loader.context as unknown as { doc_id_graphql_query: typeof mockDocIdQuery }
+      ).doc_id_graphql_query = mockDocIdQuery;
+
+      const post = await loader.getPost('TESTCODE');
+      expect(post).toBeInstanceOf(Post);
+      expect(post.shortcode).toBe('TESTCODE');
+    });
+  });
+
+  describe('getHashtag', () => {
+    it('should call Hashtag.fromName with correct arguments', async () => {
+      const loader = new Instaloader({ quiet: true });
+
+      // Mock the context's get_iphone_json to return hashtag data
+      const mockGetIphoneJson = vi.fn().mockResolvedValue({
+        data: {
+          ...sampleHashtagNode,
+          name: 'testhashtag',
+        },
+      });
+      (loader.context as unknown as { get_iphone_json: typeof mockGetIphoneJson }).get_iphone_json =
+        mockGetIphoneJson;
+
+      const hashtag = await loader.getHashtag('testhashtag');
+      expect(hashtag).toBeInstanceOf(Hashtag);
+      expect(hashtag.name).toBe('testhashtag');
     });
   });
 });

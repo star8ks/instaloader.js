@@ -302,4 +302,173 @@ describe('Profile', () => {
       expect(() => profile.getSavedPosts()).toThrow('Login as testuser required');
     });
   });
+
+  describe('getMediacount', () => {
+    it('should return correct mediacount', async () => {
+      const context = createMockContext();
+      const profile = new Profile(context, {
+        ...sampleProfileNode,
+        edge_owner_to_timeline_media: { count: 42 },
+      });
+      const count = await profile.getMediacount();
+      expect(count).toBe(42);
+    });
+  });
+
+  describe('getFollowers and getFollowees', () => {
+    it('should return correct followers count', async () => {
+      const context = createMockContext();
+      const profile = new Profile(context, sampleProfileNode);
+      const count = await profile.getFollowers();
+      expect(count).toBe(1000);
+    });
+
+    it('should return correct followees count', async () => {
+      const context = createMockContext();
+      const profile = new Profile(context, sampleProfileNode);
+      const count = await profile.getFollowees();
+      expect(count).toBe(500);
+    });
+  });
+
+  describe('followed_by_viewer and follows_viewer getters', () => {
+    it('should return correct followed_by_viewer status', () => {
+      const context = createMockContext();
+      const profile = new Profile(context, sampleProfileNode);
+      expect(profile.followed_by_viewer).toBe(false);
+    });
+
+    it('should return correct follows_viewer status', () => {
+      const context = createMockContext();
+      const profile = new Profile(context, sampleProfileNode);
+      expect(profile.follows_viewer).toBe(false);
+    });
+
+    it('should handle true values for followed_by_viewer', () => {
+      const context = createMockContext();
+      const profile = new Profile(context, { ...sampleProfileNode, followed_by_viewer: true });
+      expect(profile.followed_by_viewer).toBe(true);
+    });
+
+    it('should handle true values for follows_viewer', () => {
+      const context = createMockContext();
+      const profile = new Profile(context, { ...sampleProfileNode, follows_viewer: true });
+      expect(profile.follows_viewer).toBe(true);
+    });
+  });
+
+  describe('Profile toJSON edge cases', () => {
+    it('should exclude edge collections from JSON', () => {
+      const context = createMockContext();
+      const nodeWithEdges = {
+        ...sampleProfileNode,
+        edge_felix_video_timeline: { edges: [] },
+        edge_owner_to_timeline_media: { edges: [], count: 50 },
+      };
+      const profile = new Profile(context, nodeWithEdges);
+      const json = profile.toJSON();
+      expect(json['edge_felix_video_timeline']).toBeUndefined();
+    });
+  });
+});
+
+describe('Profile static methods', () => {
+  describe('fromId', () => {
+    it('should create Profile from user ID', async () => {
+      const mockGraphqlQuery = vi.fn().mockResolvedValue({
+        data: {
+          user: {
+            reel: {
+              owner: {
+                id: '123456789',
+                username: 'testuser',
+                is_private: false,
+                full_name: 'Test User',
+              },
+            },
+          },
+        },
+      });
+      const context = createMockContext({
+        graphql_query: mockGraphqlQuery,
+      });
+      const profile = await Profile.fromId(context, 123456789);
+      expect(profile).toBeInstanceOf(Profile);
+      expect(profile.username).toBe('testuser');
+    });
+
+    it('should return cached profile if available', async () => {
+      const context = createMockContext();
+      const cachedProfile = new Profile(context, sampleProfileNode);
+      context.profile_id_cache.set(123456789, cachedProfile);
+
+      const profile = await Profile.fromId(context, 123456789);
+      expect(profile).toBe(cachedProfile);
+    });
+
+    it('should throw ProfileNotExistsException when user not found', async () => {
+      const mockGraphqlQuery = vi.fn().mockResolvedValue({
+        data: {
+          user: null,
+        },
+      });
+      const context = createMockContext({
+        graphql_query: mockGraphqlQuery,
+      });
+
+      const { ProfileNotExistsException } = await import('../exceptions');
+      await expect(Profile.fromId(context, 999999999)).rejects.toThrow(ProfileNotExistsException);
+    });
+  });
+
+  describe('ownProfile', () => {
+    it('should throw LoginRequiredException when not logged in', async () => {
+      const context = createMockContext({ is_logged_in: false });
+      const { LoginRequiredException } = await import('../exceptions');
+      await expect(Profile.ownProfile(context)).rejects.toThrow(LoginRequiredException);
+    });
+
+    it('should return own profile when logged in', async () => {
+      const mockGraphqlQuery = vi.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: '123456789',
+            username: 'myuser',
+            is_private: false,
+            full_name: 'My User',
+          },
+        },
+      });
+      const context = createMockContext({
+        is_logged_in: true,
+        graphql_query: mockGraphqlQuery,
+      });
+
+      const profile = await Profile.ownProfile(context);
+      expect(profile).toBeInstanceOf(Profile);
+      expect(profile.username).toBe('myuser');
+    });
+  });
+
+  describe('fromUsername', () => {
+    it('should create Profile from username', async () => {
+      const mockGetIphoneJson = vi.fn().mockResolvedValue({
+        data: {
+          user: {
+            id: '123456789',
+            username: 'testuser',
+            is_private: false,
+            full_name: 'Test User',
+          },
+        },
+      });
+      const context = createMockContext({
+        get_iphone_json: mockGetIphoneJson,
+      });
+
+      const profile = await Profile.fromUsername(context, 'testuser');
+      expect(profile).toBeInstanceOf(Profile);
+      expect(profile.username).toBe('testuser');
+    });
+  });
 });

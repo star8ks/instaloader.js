@@ -15,9 +15,13 @@ function createMockContext(username: string | null = 'testuser'): InstaloaderCon
 }
 
 // Helper to create edge data
-function createEdges(nodes: JsonObject[]): { edges: Array<{ node: JsonObject }>; page_info: { has_next_page: boolean; end_cursor: string | null }; count?: number } {
+function createEdges(nodes: JsonObject[]): {
+  edges: Array<{ node: JsonObject }>;
+  page_info: { has_next_page: boolean; end_cursor: string | null };
+  count?: number;
+} {
   return {
-    edges: nodes.map(node => ({ node })),
+    edges: nodes.map((node) => ({ node })),
     page_info: { has_next_page: false, end_cursor: null },
   };
 }
@@ -26,9 +30,13 @@ function createEdgesWithPagination(
   nodes: JsonObject[],
   hasNextPage: boolean,
   endCursor: string | null
-): { edges: Array<{ node: JsonObject }>; page_info: { has_next_page: boolean; end_cursor: string | null }; count?: number } {
+): {
+  edges: Array<{ node: JsonObject }>;
+  page_info: { has_next_page: boolean; end_cursor: string | null };
+  count?: number;
+} {
   return {
-    edges: nodes.map(node => ({ node })),
+    edges: nodes.map((node) => ({ node })),
     page_info: { has_next_page: hasNextPage, end_cursor: endCursor },
   };
 }
@@ -123,7 +131,7 @@ describe('NodeIterator', () => {
       });
 
       // Wait for the constructor's async initialization
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(context.graphql_query).toHaveBeenCalled();
     });
@@ -173,7 +181,7 @@ describe('NodeIterator', () => {
       }
 
       expect(results).toHaveLength(4);
-      expect(results.map(r => r['id'])).toEqual(['1', '2', '3', '4']);
+      expect(results.map((r) => r['id'])).toEqual(['1', '2', '3', '4']);
     });
 
     it('should track totalIndex correctly', async () => {
@@ -221,7 +229,10 @@ describe('NodeIterator', () => {
     });
 
     it('should use isFirst callback to determine first item', async () => {
-      const nodes = [{ id: '2', date: 100 }, { id: '1', date: 200 }];
+      const nodes = [
+        { id: '2', date: 100 },
+        { id: '1', date: 200 },
+      ];
       const firstData = createEdges(nodes);
 
       const iterator = new NodeIterator<JsonObject>({
@@ -347,7 +358,7 @@ describe('NodeIterator', () => {
         queryReferer: null,
         contextUsername: 'testuser',
         totalIndex: 1,
-        bestBefore: (Date.now() / 1000) + 86400, // 1 day in future
+        bestBefore: Date.now() / 1000 + 86400, // 1 day in future
         remainingData: {
           edges: [{ node: { id: '2' } }, { node: { id: '3' } }],
           page_info: { has_next_page: false, end_cursor: null },
@@ -526,5 +537,159 @@ describe('resumableIteration', () => {
 
     expect(result.isResuming).toBe(false);
     expect(result.startIndex).toBe(0);
+  });
+
+  it('should successfully resume when state is found', async () => {
+    const nodes = [{ id: '2' }, { id: '3' }];
+    const remainingData = createEdges(nodes);
+
+    const mockFrozen = new FrozenNodeIterator({
+      queryHash: 'hash123',
+      queryVariables: {},
+      queryReferer: null,
+      contextUsername: 'testuser',
+      totalIndex: 1, // Resume from index 1
+      bestBefore: Date.now() / 1000 + 86400,
+      remainingData,
+      firstNode: { id: '1' },
+      docId: undefined,
+    });
+
+    loadFn = vi.fn().mockResolvedValue(mockFrozen);
+
+    const firstData = createEdges([{ id: '1' }]);
+    const iterator = new NodeIterator<JsonObject>({
+      context,
+      queryHash: 'hash123',
+      edgeExtractor: (data) => data,
+      nodeWrapper: (node) => node,
+      firstData,
+    });
+
+    const result = await resumableIteration({
+      context,
+      iterator,
+      load: loadFn,
+      save: saveFn,
+      formatPath,
+    });
+
+    expect(result.isResuming).toBe(true);
+    expect(result.startIndex).toBe(1);
+  });
+
+  it('should throw error when checkBbd is true and best before date has exceeded', async () => {
+    const nodes = [{ id: '2' }, { id: '3' }];
+    const remainingData = createEdges(nodes);
+
+    // Create frozen iterator with expired best before date (1 day in the past)
+    const mockFrozen = new FrozenNodeIterator({
+      queryHash: 'hash123',
+      queryVariables: {},
+      queryReferer: null,
+      contextUsername: 'testuser',
+      totalIndex: 1,
+      bestBefore: Date.now() / 1000 - 86400, // 1 day ago (expired)
+      remainingData,
+      firstNode: { id: '1' },
+      docId: undefined,
+    });
+
+    loadFn = vi.fn().mockResolvedValue(mockFrozen);
+
+    const firstData = createEdges([{ id: '1' }]);
+    const iterator = new NodeIterator<JsonObject>({
+      context,
+      queryHash: 'hash123',
+      edgeExtractor: (data) => data,
+      nodeWrapper: (node) => node,
+      firstData,
+    });
+
+    // With checkBbd = true (default), expired date should cause a warning and start fresh
+    const result = await resumableIteration({
+      context,
+      iterator,
+      load: loadFn,
+      save: saveFn,
+      formatPath,
+      checkBbd: true,
+    });
+
+    // Should log warning and start fresh
+    expect(context.error).toHaveBeenCalledWith(
+      expect.stringContaining('"Best before" date exceeded')
+    );
+    expect(result.isResuming).toBe(false);
+    expect(result.startIndex).toBe(0);
+  });
+
+  it('should log warning when loaded state is not a FrozenNodeIterator', async () => {
+    // Return a non-FrozenNodeIterator object
+    loadFn = vi.fn().mockResolvedValue({ not: 'a frozen iterator' });
+
+    const firstData = createEdges([{ id: '1' }]);
+    const iterator = new NodeIterator<JsonObject>({
+      context,
+      queryHash: 'hash123',
+      edgeExtractor: (data) => data,
+      nodeWrapper: (node) => node,
+      firstData,
+    });
+
+    const result = await resumableIteration({
+      context,
+      iterator,
+      load: loadFn,
+      save: saveFn,
+      formatPath,
+    });
+
+    // Should log warning and start fresh
+    expect(context.error).toHaveBeenCalledWith(expect.stringContaining('Invalid type'));
+    expect(result.isResuming).toBe(false);
+    expect(result.startIndex).toBe(0);
+  });
+
+  it('should skip checkBbd when checkBbd is false', async () => {
+    const nodes = [{ id: '2' }, { id: '3' }];
+    const remainingData = createEdges(nodes);
+
+    // Create frozen iterator with expired best before date
+    const mockFrozen = new FrozenNodeIterator({
+      queryHash: 'hash123',
+      queryVariables: {},
+      queryReferer: null,
+      contextUsername: 'testuser',
+      totalIndex: 1,
+      bestBefore: Date.now() / 1000 - 86400, // Expired
+      remainingData,
+      firstNode: { id: '1' },
+      docId: undefined,
+    });
+
+    loadFn = vi.fn().mockResolvedValue(mockFrozen);
+
+    const firstData = createEdges([{ id: '1' }]);
+    const iterator = new NodeIterator<JsonObject>({
+      context,
+      queryHash: 'hash123',
+      edgeExtractor: (data) => data,
+      nodeWrapper: (node) => node,
+      firstData,
+    });
+
+    // With checkBbd = false, should resume despite expired date
+    const result = await resumableIteration({
+      context,
+      iterator,
+      load: loadFn,
+      save: saveFn,
+      formatPath,
+      checkBbd: false,
+    });
+
+    expect(result.isResuming).toBe(true);
+    expect(result.startIndex).toBe(1);
   });
 });

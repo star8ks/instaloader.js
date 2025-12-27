@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Post, Profile } from '../structures';
+import { Post, Profile, PostComment } from '../structures';
 import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
 
@@ -451,6 +451,116 @@ describe('Post', () => {
     });
   });
 
+  describe('pcaption', () => {
+    it('should return printable caption', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      // pcaption truncates to 30 chars with ellipsis
+      expect(post.pcaption).toBe('Hello #world @friend! #photogr…');
+    });
+
+    it('should return empty string when no caption', () => {
+      const context = createMockContext();
+      const nodeWithoutCaption = { ...samplePostNode };
+      delete (nodeWithoutCaption as Record<string, unknown>)['edge_media_to_caption'];
+      const post = new Post(context, nodeWithoutCaption);
+      expect(post.pcaption).toBe('');
+    });
+
+    it('should not truncate short captions', () => {
+      const context = createMockContext();
+      const shortCaption = 'Short';
+      const nodeWithShortCaption = {
+        ...samplePostNode,
+        edge_media_to_caption: { edges: [{ node: { text: shortCaption } }] },
+      };
+      const post = new Post(context, nodeWithShortCaption);
+      expect(post.pcaption).toBe('Short');
+    });
+  });
+
+  describe('tagged_users', () => {
+    it('should return empty array when no tagged users', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.tagged_users).toEqual([]);
+    });
+
+    it('should return lowercased tagged usernames', () => {
+      const context = createMockContext();
+      const nodeWithTags = {
+        ...samplePostNode,
+        edge_media_to_tagged_user: {
+          edges: [
+            { node: { user: { username: 'User1' } } },
+            { node: { user: { username: 'User2' } } },
+          ],
+        },
+      };
+      const post = new Post(context, nodeWithTags);
+      expect(post.tagged_users).toEqual(['user1', 'user2']);
+    });
+  });
+
+  describe('caption with different formats', () => {
+    it('should handle caption field directly', () => {
+      const context = createMockContext();
+      const nodeWithDirectCaption = {
+        ...samplePostNode,
+        caption: 'Direct caption',
+      };
+      delete (nodeWithDirectCaption as Record<string, unknown>)['edge_media_to_caption'];
+      const post = new Post(context, nodeWithDirectCaption);
+      expect(post.caption).toBe('Direct caption');
+    });
+
+    it('should handle empty edge_media_to_caption edges', () => {
+      const context = createMockContext();
+      const nodeWithEmptyEdges = {
+        ...samplePostNode,
+        edge_media_to_caption: { edges: [] },
+      };
+      const post = new Post(context, nodeWithEmptyEdges);
+      expect(post.caption).toBeNull();
+    });
+  });
+
+  describe('owner_id', () => {
+    it('should return correct owner_id', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.owner_id).toBe(123456789);
+    });
+
+    it('should return null when owner has no id', () => {
+      const context = createMockContext();
+      const nodeWithoutOwnerId = { ...samplePostNode, owner: {} };
+      const post = new Post(context, nodeWithoutOwnerId);
+      expect(post.owner_id).toBeNull();
+    });
+
+    it('should return null when no owner', () => {
+      const context = createMockContext();
+      const nodeWithoutOwner = { ...samplePostNode };
+      delete (nodeWithoutOwner as Record<string, unknown>)['owner'];
+      const post = new Post(context, nodeWithoutOwner);
+      expect(post.owner_id).toBeNull();
+    });
+  });
+
+  describe('getOwnerUsername', () => {
+    it('should return owner username asynchronously', async () => {
+      const context = createMockContext();
+      const nodeWithOwner = {
+        ...samplePostNode,
+        owner: { id: '123456789', username: 'testuser' },
+      };
+      const post = new Post(context, nodeWithOwner);
+      const username = await post.getOwnerUsername();
+      expect(username).toBe('testuser');
+    });
+  });
+
   describe('fromIphoneStruct with carousel', () => {
     it('should handle carousel media (sidecar)', () => {
       const context = createMockContext();
@@ -527,6 +637,351 @@ describe('Post', () => {
 
       const post = Post.fromIphoneStruct(context, iphoneMedia);
       expect(post.accessibility_caption).toBe('A photo showing sunset');
+    });
+  });
+});
+
+describe('PostComment', () => {
+  describe('constructor', () => {
+    it('should create a PostComment from a valid node', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment).toBeInstanceOf(PostComment);
+    });
+  });
+
+  describe('properties', () => {
+    it('should return correct id', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.id).toBe(12345);
+    });
+
+    it('should return correct created_at_utc', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.created_at_utc.getTime()).toBe(1677000000 * 1000);
+    });
+
+    it('should return correct text', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.text).toBe('Great post!');
+    });
+
+    it('should return correct likes_count', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.likes_count).toBe(5);
+    });
+
+    it('should return 0 likes_count when no edge_liked_by', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.likes_count).toBe(0);
+    });
+
+    it('should return owner Profile', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+        edge_liked_by: { count: 5 },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.owner).toBeInstanceOf(Profile);
+      expect(comment.owner.username).toBe('commenter');
+    });
+
+    it('should return answers iterator', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.answers).toBeDefined();
+    });
+  });
+
+  describe('toString', () => {
+    it('should return correct string representation', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const commentNode: JsonObject = {
+        id: 12345,
+        created_at: 1677000000,
+        text: 'Great post!',
+        owner: { id: '111', username: 'commenter' },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = new PostComment(context, commentNode, emptyAnswers, post);
+      expect(comment.toString()).toBe('<PostComment 12345 of CpFxHKMNu7g>');
+    });
+  });
+
+  describe('fromIphoneStruct', () => {
+    it('should create PostComment from iPhone struct', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const iphoneComment: JsonObject = {
+        pk: 12345,
+        created_at: 1677000000,
+        text: 'iPhone comment',
+        comment_like_count: 10,
+        user: { pk: '111', username: 'iphonecommenter' },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = PostComment.fromIphoneStruct(context, iphoneComment, emptyAnswers, post);
+      expect(comment.id).toBe(12345);
+      expect(comment.text).toBe('iPhone comment');
+      expect(comment.likes_count).toBe(10);
+    });
+
+    it('should return owner from iphone_struct', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const iphoneComment: JsonObject = {
+        pk: 12345,
+        created_at: 1677000000,
+        text: 'iPhone comment',
+        comment_like_count: 10,
+        user: { pk: '111', username: 'iphonecommenter', is_private: false },
+      };
+      const emptyAnswers = (async function* () {})();
+      const comment = PostComment.fromIphoneStruct(context, iphoneComment, emptyAnswers, post);
+      expect(comment.owner.username).toBe('iphonecommenter');
+    });
+  });
+});
+
+describe('Post additional properties', () => {
+  describe('title', () => {
+    it('should return title when available', () => {
+      const context = createMockContext();
+      const nodeWithTitle = {
+        ...samplePostNode,
+        title: 'My Post Title',
+      };
+      const post = new Post(context, nodeWithTitle);
+      expect(post.title).toBe('My Post Title');
+    });
+
+    it('should return null when title not available', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.title).toBeNull();
+    });
+  });
+
+  describe('video_view_count', () => {
+    it('should return view count for videos', () => {
+      const context = createMockContext();
+      const nodeWithViews = {
+        ...sampleVideoNode,
+        video_view_count: 1000,
+      };
+      const post = new Post(context, nodeWithViews);
+      expect(post.video_view_count).toBe(1000);
+    });
+
+    it('should return null for non-videos', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.video_view_count).toBeNull();
+    });
+
+    it('should return null when view count not available', () => {
+      const context = createMockContext();
+      const videoWithoutViews = { ...sampleVideoNode };
+      delete (videoWithoutViews as Record<string, unknown>)['video_view_count'];
+      const post = new Post(context, videoWithoutViews);
+      expect(post.video_view_count).toBeNull();
+    });
+  });
+
+  describe('viewer_has_liked', () => {
+    it('should return null when not logged in', () => {
+      const context = createMockContext({ is_logged_in: false });
+      const post = new Post(context, samplePostNode);
+      expect(post.viewer_has_liked).toBeNull();
+    });
+
+    it('should return true when viewer has liked (likes structure)', () => {
+      const context = createMockContext({ is_logged_in: true });
+      const nodeWithLike = {
+        ...samplePostNode,
+        likes: { viewer_has_liked: true },
+      };
+      const post = new Post(context, nodeWithLike);
+      expect(post.viewer_has_liked).toBe(true);
+    });
+
+    it('should return false when viewer has not liked', () => {
+      const context = createMockContext({ is_logged_in: true });
+      const nodeWithLike = {
+        ...samplePostNode,
+        viewer_has_liked: false,
+      };
+      const post = new Post(context, nodeWithLike);
+      expect(post.viewer_has_liked).toBe(false);
+    });
+  });
+
+  describe('mediacount', () => {
+    it('should return 1 for non-sidecar posts', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.mediacount).toBe(1);
+    });
+
+    it('should return count of slides for sidecar posts', () => {
+      const context = createMockContext();
+      const sidecarNode = {
+        ...samplePostNode,
+        __typename: 'GraphSidecar',
+        edge_sidecar_to_children: {
+          edges: [{ node: {} }, { node: {} }, { node: {} }],
+        },
+      };
+      const post = new Post(context, sidecarNode);
+      expect(post.mediacount).toBe(3);
+    });
+
+    it('should return 1 when sidecar has no edge data', () => {
+      const context = createMockContext();
+      const sidecarNode = {
+        ...samplePostNode,
+        __typename: 'GraphSidecar',
+      };
+      const post = new Post(context, sidecarNode);
+      expect(post.mediacount).toBe(1);
+    });
+  });
+
+  describe('date', () => {
+    it('should return same as date_utc', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.date.getTime()).toBe(post.date_utc.getTime());
+    });
+  });
+
+  describe('url', () => {
+    it('should return display_url', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.url).toBe('https://example.com/image.jpg');
+    });
+
+    it('should fallback to display_src', () => {
+      const context = createMockContext();
+      const nodeWithSrc = {
+        ...samplePostNode,
+        display_src: 'https://example.com/fallback.jpg',
+      };
+      delete (nodeWithSrc as Record<string, unknown>)['display_url'];
+      const post = new Post(context, nodeWithSrc);
+      expect(post.url).toBe('https://example.com/fallback.jpg');
+    });
+  });
+
+  describe('accessibility_caption', () => {
+    it('should return accessibility caption when available', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.accessibility_caption).toBe('A beautiful sunset photo');
+    });
+
+    it('should return null when not available', () => {
+      const context = createMockContext();
+      const nodeWithoutCaption = { ...samplePostNode };
+      delete (nodeWithoutCaption as Record<string, unknown>)['accessibility_caption'];
+      const post = new Post(context, nodeWithoutCaption);
+      expect(post.accessibility_caption).toBeNull();
+    });
+  });
+
+  describe('video_url', () => {
+    it('should return video_url for videos', () => {
+      const context = createMockContext();
+      const post = new Post(context, sampleVideoNode);
+      expect(post.video_url).toBe('https://example.com/video.mp4');
+    });
+
+    it('should return null for non-videos', () => {
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      expect(post.video_url).toBeNull();
+    });
+
+    it('should return null when video_url not available', () => {
+      const context = createMockContext();
+      const videoWithoutUrl = { ...sampleVideoNode };
+      delete (videoWithoutUrl as Record<string, unknown>)['video_url'];
+      const post = new Post(context, videoWithoutUrl);
+      expect(post.video_url).toBeNull();
     });
   });
 });
