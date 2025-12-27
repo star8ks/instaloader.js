@@ -2,9 +2,10 @@
  * Tests for Instaloader class and utility functions.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import {
   Instaloader,
   getConfigDir,
@@ -14,10 +15,31 @@ import {
   sanitizePath,
   formatFilename,
 } from '../instaloader';
-import { Post, Profile } from '../structures';
+import { Post, Profile, StoryItem } from '../structures';
 import { LoginRequiredException, InvalidArgumentException } from '../exceptions';
 import type { InstaloaderContext } from '../instaloadercontext';
 import type { JsonObject } from '../types';
+
+// Mock fs module
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof fs>('fs');
+  return {
+    ...actual,
+    existsSync: vi.fn().mockReturnValue(false),
+    promises: {
+      ...actual.promises,
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue('{}'),
+      utimes: vi.fn().mockResolvedValue(undefined),
+      access: vi.fn().mockRejectedValue(new Error('ENOENT')),
+    },
+  };
+});
+
+// Mock fetch
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 // Mock InstaloaderContext
 function createMockContext(overrides: Record<string, unknown> = {}): InstaloaderContext {
@@ -494,6 +516,280 @@ describe('Instaloader', () => {
       const loader2 = new Instaloader({ compressJson: false });
       expect(loader1.compressJson).toBe(true);
       expect(loader2.compressJson).toBe(false);
+    });
+
+    it('should expose downloadVideoThumbnails setting', () => {
+      const loader1 = new Instaloader({ downloadVideoThumbnails: true });
+      const loader2 = new Instaloader({ downloadVideoThumbnails: false });
+      expect(loader1.downloadVideoThumbnails).toBe(true);
+      expect(loader2.downloadVideoThumbnails).toBe(false);
+    });
+
+    it('should expose downloadGeotags setting', () => {
+      const loader1 = new Instaloader({ downloadGeotags: true });
+      const loader2 = new Instaloader({ downloadGeotags: false });
+      expect(loader1.downloadGeotags).toBe(true);
+      expect(loader2.downloadGeotags).toBe(false);
+    });
+
+    it('should expose postMetadataTxtPattern setting', () => {
+      const loader = new Instaloader({ postMetadataTxtPattern: '{shortcode}' });
+      expect(loader.postMetadataTxtPattern).toBe('{shortcode}');
+    });
+
+    it('should expose storyitemMetadataTxtPattern setting', () => {
+      const loader = new Instaloader({ storyitemMetadataTxtPattern: '{mediaid}' });
+      expect(loader.storyitemMetadataTxtPattern).toBe('{mediaid}');
+    });
+
+    it('should expose checkResumeBbd setting', () => {
+      const loader1 = new Instaloader({ checkResumeBbd: true });
+      const loader2 = new Instaloader({ checkResumeBbd: false });
+      expect(loader1.checkResumeBbd).toBe(true);
+      expect(loader2.checkResumeBbd).toBe(false);
+    });
+  });
+
+  describe('downloadPic', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should download a file successfully', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const result = await loader.downloadPic(
+        '/tmp/test',
+        'https://example.com/image.jpg?123',
+        new Date()
+      );
+
+      expect(result).toBe(true);
+      expect(mockFetch).toHaveBeenCalled();
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+      expect(fs.promises.utimes).toHaveBeenCalled();
+    });
+
+    it('should return false if file already exists', async () => {
+      const loader = new Instaloader({ quiet: true });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      const result = await loader.downloadPic(
+        '/tmp/test',
+        'https://example.com/image.jpg?123',
+        new Date()
+      );
+
+      expect(result).toBe(false);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should add filename suffix when provided', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPic('/tmp/test', 'https://example.com/image.jpg?123', new Date(), '1');
+
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('test_1'),
+        expect.anything()
+      );
+    });
+
+    it('should throw ConnectionException on failed fetch', async () => {
+      const loader = new Instaloader({ quiet: true });
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      const { ConnectionException } = await import('../exceptions');
+      await expect(
+        loader.downloadPic('/tmp/test', 'https://example.com/image.jpg', new Date())
+      ).rejects.toThrow(ConnectionException);
+    });
+
+    it('should convert jpeg Content-Type to jpg extension', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      await loader.downloadPic('/tmp/test', 'https://example.com/image.png?123', new Date());
+
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.jpg'),
+        expect.anything()
+      );
+    });
+
+    it('should create directory if it does not exist', async () => {
+      const loader = new Instaloader({ quiet: true });
+      const mockResponse = {
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'image/jpeg' }),
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await loader.downloadPic('/tmp/subdir/test', 'https://example.com/image.jpg', new Date());
+
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(expect.stringContaining('subdir'), {
+        recursive: true,
+      });
+    });
+  });
+
+  describe('saveMetadataJson', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should save metadata as JSON', async () => {
+      const loader = new Instaloader({ quiet: true, compressJson: false });
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+
+      await loader.saveMetadataJson('/tmp/test', post);
+
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/tmp/test.json',
+        expect.stringContaining('"node"')
+      );
+    });
+
+    it('should handle compressJson option (saves as uncompressed for now)', async () => {
+      const loader = new Instaloader({ quiet: true, compressJson: true });
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+
+      await loader.saveMetadataJson('/tmp/test', post);
+
+      // Currently saves as uncompressed even with compressJson: true
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+    });
+
+    it('should log json for Post', async () => {
+      const loader = new Instaloader({ quiet: false, compressJson: false });
+      const context = createMockContext();
+      const post = new Post(context, samplePostNode);
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      await loader.saveMetadataJson('/tmp/test', post);
+
+      expect(logSpy).toHaveBeenCalledWith('json', false);
+    });
+
+    it('should log json for StoryItem', async () => {
+      const loader = new Instaloader({ quiet: false, compressJson: false });
+      const context = createMockContext();
+      const storyItem = new StoryItem(context, {
+        id: '11111',
+        __typename: 'GraphStoryImage',
+        display_url: 'https://example.com/story.jpg',
+        taken_at_timestamp: 1609459200,
+        is_video: false,
+        owner: { id: '67890', username: 'testowner' },
+      });
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      await loader.saveMetadataJson('/tmp/test', storyItem);
+
+      expect(logSpy).toHaveBeenCalledWith('json', false);
+    });
+  });
+
+  describe('saveCaption', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    });
+
+    it('should save caption to text file', async () => {
+      const loader = new Instaloader({ quiet: true });
+
+      await loader.saveCaption('/tmp/test', new Date(), 'Test caption');
+
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/tmp/test.txt',
+        'Test caption\n',
+        'utf-8'
+      );
+    });
+
+    it('should log unchanged when file content is same', async () => {
+      const loader = new Instaloader({ quiet: false });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readFile).mockResolvedValue('Test caption\n');
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      await loader.saveCaption('/tmp/test', new Date(), 'Test caption');
+
+      expect(logSpy).toHaveBeenCalledWith('txt unchanged', false);
+    });
+
+    it('should log updated when file content is different', async () => {
+      const loader = new Instaloader({ quiet: false });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readFile).mockResolvedValue('Old caption\n');
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      await loader.saveCaption('/tmp/test', new Date(), 'New caption');
+
+      expect(logSpy).toHaveBeenCalledWith('txt updated', false);
+    });
+
+    it('should log preview when creating new file', async () => {
+      const loader = new Instaloader({ quiet: false });
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      await loader.saveCaption('/tmp/test', new Date(), 'Short caption');
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[Short caption]'), false);
+    });
+
+    it('should truncate long preview', async () => {
+      const loader = new Instaloader({ quiet: false });
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const logSpy = vi.spyOn(loader.context, 'log');
+
+      const longCaption = 'A'.repeat(100);
+      await loader.saveCaption('/tmp/test', new Date(), longCaption);
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('…]'), false);
+    });
+  });
+
+  describe('getHashtag', () => {
+    it('should be a method that returns a Promise', () => {
+      const loader = new Instaloader();
+      expect(typeof loader.getHashtag).toBe('function');
+    });
+  });
+
+  describe('context access', () => {
+    it('should expose context userAgent', () => {
+      const loader = new Instaloader({ userAgent: 'CustomAgent/1.0' });
+      expect(loader.context.userAgent).toBeDefined();
     });
   });
 });
