@@ -407,4 +407,4 @@ MIT
 
 If you find this project helpful, consider supporting its development:
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/nickyoung)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/vicociv)
