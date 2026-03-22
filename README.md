@@ -1,5 +1,6 @@
-# @vicociv/instaloader
+# instaloader
 
+[![npm version](https://img.shields.io/npm/v/@vicociv/instaloader.svg)](https://www.npmjs.com/package/@vicociv/instaloader)
 [![npm downloads](https://img.shields.io/npm/dm/@vicociv/instaloader.svg)](https://www.npmjs.com/package/@vicociv/instaloader)
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/@vicociv/instaloader)](https://bundlephobia.com/package/@vicociv/instaloader)
 [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://bundlephobia.com/package/@vicociv/instaloader)
@@ -10,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 
-TypeScript port of [instaloader](https://github.com/instaloader/instaloader) - Download Instagram content (posts, stories, profiles) with metadata.
+Download Instagram content (posts, stories, profiles) with metadata. TypeScript port of [instaloader](https://github.com/instaloader/instaloader).
 
 ## Installation
 
@@ -398,6 +399,7 @@ import {
 - [ ] Download Reels
 - [ ] Location support
 - [ ] CLI tool
+- [ ] SKILL.md for LLM
 
 ## License
 
